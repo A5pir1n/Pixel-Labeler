@@ -16,16 +16,16 @@ bash
 python labeler.py
 Follow the instructions to load an image, label foreground and background, and save the labels.
 
-Contributing
+## Contributing
 We welcome contributions! Here's how you can help:
 
-Fork the repository.
+## Fork the repository.
 Create a new branch with your feature or bugfix.
 Submit a pull request.
 Uploading Your Labeled Data
 Save your labeled image and metadata in the user_uploads/ directory.
 
-Make sure to include:
+## Make sure to include:
 
 The labeled image.
 The label file (e.g., image_labels.txt).
