@@ -1,8 +1,15 @@
+import torch
+import torchvision
+import matplotlib.pyplot as plt
+import numpy as np
+import certifi
+import os
 import tkinter as tk
 import json
 from tkinter import filedialog
 from PIL import Image, ImageTk, ImageDraw, ImageOps
 import sys
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
 
 class ImageLabeler:
@@ -25,8 +32,29 @@ class ImageLabeler:
         self.save_labels_button = tk.Button(root, text="Save Labels", command=self.save_labels)
         self.save_labels_button.pack(side=tk.BOTTOM)
 
+        self.load_labels_button = tk.Button(root, text="Load Labels", command=self.load_labels)
+        self.load_labels_button.pack(side=tk.BOTTOM)
+
         self.clear_button = tk.Button(root, text="Clear All", command=self.clear_all)
         self.clear_button.pack(side=tk.BOTTOM)
+
+        self.classify_button = tk.Button(root, text="Classify by SAM", command=self.classify_by_sam)
+        self.classify_button.pack(side=tk.BOTTOM)
+
+        self.threshold_a_label = tk.Label(root, text="Threshold A (Background):")
+        self.threshold_a_label.pack(side=tk.BOTTOM)
+        self.threshold_a = tk.Entry(root)
+        self.threshold_a.pack(side=tk.BOTTOM)
+
+        self.threshold_b_label = tk.Label(root, text="Threshold B (Foreground):")
+        self.threshold_b_label.pack(side=tk.BOTTOM)
+        self.threshold_b = tk.Entry(root)
+        self.threshold_b.pack(side=tk.BOTTOM)
+
+        self.lambda_label = tk.Label(root, text="Lambda Value:")
+        self.lambda_label.pack(side=tk.BOTTOM)
+        self.lambda_slider = tk.Scale(root, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL, command=self.update_display)
+        self.lambda_slider.pack(side=tk.BOTTOM)
 
         self.marking_mode = tk.StringVar(value="foreground")
         self.foreground_checkbox = tk.Radiobutton(root, text="Marking Foreground", variable=self.marking_mode, value="foreground")
@@ -56,6 +84,7 @@ class ImageLabeler:
         self.canvas.bind("<Button-1>", self.start_draw_or_click)
         self.canvas.bind("<B1-Motion>", self.draw)
         self.canvas.bind("<ButtonRelease-1>", self.end_draw_or_click)
+
 
 
     def load_labels(self):
@@ -131,6 +160,81 @@ class ImageLabeler:
             self.processed_photo = ImageTk.PhotoImage(self.processed_image)
             self.processed_canvas.create_image(0, 0, image=self.processed_photo, anchor=tk.NW)
             self.draw_grid()
+            
+    def classify_by_sam(self):
+        # Load the pre-trained Mask R-CNN model
+        model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights=torchvision.models.detection.MaskRCNN_ResNet50_FPN_Weights.DEFAULT)
+        model.eval()
+
+        img = Image.open(self.image_path).convert("RGB")
+        img = np.array(img)
+        transform = torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+        ])
+        img_tensor = transform(img)
+
+
+        with torch.no_grad():
+            predictions = model([img_tensor])[0]
+
+        # get masks?
+        masks = predictions['masks'].cpu().numpy()
+        combined_mask = np.zeros_like(masks[0, 0])
+
+        for mask in masks:
+            combined_mask = np.maximum(combined_mask, mask[0])
+        try:
+            threshold_a = float(self.threshold_a.get())
+            threshold_b = float(self.threshold_b.get())
+        except ValueError:
+            print("Invalid thresholds. Please enter numeric values.")
+            return
+
+        # classify
+        height, width = combined_mask.shape
+        for y in range(height):
+            for x in range(width):
+                pixel_value = combined_mask[y, x]
+                if pixel_value < threshold_a:
+                    self.background_pixels.add((x, y))
+                    self.processed_image.putpixel((x, y), (0, 0, 0))  
+                elif pixel_value > threshold_b:
+                    self.foreground_pixels.add((x, y))
+                    self.processed_image.putpixel((x, y), (255, 255, 255))  
+                else:
+                    self.unidentified_pixels.add((x, y))
+                    self.processed_image.putpixel((x, y), (128, 128, 128))  
+
+        # Update the processed image
+        self.processed_photo = ImageTk.PhotoImage(self.processed_image)
+        self.processed_canvas.create_image(0, 0, image=self.processed_photo, anchor=tk.NW)
+        self.update_processed_image()
+        
+
+
+    def update_display(self, event=None):
+        if self.image is None or self.processed_image is None:
+            return
+
+        lambda_value = self.lambda_slider.get()
+        blended_image = Image.new("RGB", self.image.size)
+        
+        original_pixels = self.image.load()
+        processed_pixels = self.processed_image.load()
+        blended_pixels = blended_image.load()
+
+        width, height = self.image.size
+        for y in range(height):
+            for x in range(width):
+                r, g, b = original_pixels[x, y]
+                r_prime, g_prime, b_prime = processed_pixels[x, y]
+                blended_r = int(lambda_value * r + (1 - lambda_value) * r_prime)
+                blended_g = int(lambda_value * g + (1 - lambda_value) * g_prime)
+                blended_b = int(lambda_value * b + (1 - lambda_value) * b_prime)
+                blended_pixels[x, y] = (blended_r, blended_g, blended_b)
+
+        self.processed_photo = ImageTk.PhotoImage(blended_image)
+        self.processed_canvas.create_image(0, 0, image=self.processed_photo, anchor=tk.NW)
 
 
     def draw_grid(self):
@@ -634,6 +738,7 @@ class ImageLabeler:
         third_level_canvas.bind("<Button-1>", lambda event: self.start_third_level_draw_or_click(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
         third_level_canvas.bind("<B1-Motion>", lambda event: self.draw_third_level(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
         third_level_canvas.bind("<ButtonRelease-1>", lambda event: self.end_third_level_draw_or_click(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
+        third_level_canvas.bind("<Button-4>", lambda event: self.mark_similar_color(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
 
         # Store the image reference to avoid garbage collection
         third_level_canvas.image = third_level_photo
@@ -645,6 +750,7 @@ class ImageLabeler:
         self.single_click_position = (event.x, event.y)
         self.moved = False
         self.drawn_lines = [[event.x, event.y]]
+
 
     def draw_third_level(self, event, canvas, block_id, detailed_block_id, pixel_size):
         self.moved = True
@@ -721,32 +827,42 @@ class ImageLabeler:
 
 
     def process_third_level_single_click(self, x, y, canvas, block_id, detailed_block_id, pixel_size):
-        third_level_x = block_id[0] * (self.block_size // 10) + detailed_block_id[0] * (self.block_size // 100) + (x // pixel_size)
-        third_level_y = block_id[1] * (self.block_size // 10) + detailed_block_id[1] * (self.block_size // 100) + (y // pixel_size)
+        third_level_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10) + (x // pixel_size)
+        third_level_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10) + (y // pixel_size)
+        third_level_block_size = self.block_size // 100
 
         if self.marking_mode.get() == "foreground":
-            if self.is_block_foreground(third_level_x, third_level_y, self.block_size // 100):
-                self.remove_block_pixels_from_foreground(third_level_x, third_level_y, self.block_size // 100)
-                self.redraw_third_level_block(x // pixel_size, y // pixel_size, canvas, pixel_size)
+            if self.is_block_foreground(third_level_x, third_level_y, third_level_block_size):
+                self.remove_block_pixels_from_foreground(third_level_x, third_level_y, third_level_block_size)
+                self.redraw_third_level_block((third_level_x % (self.block_size // 10)) // third_level_block_size,
+                                            (third_level_y % (self.block_size // 10)) // third_level_block_size,
+                                            canvas, pixel_size)
             else:
-                self.add_block_pixels_to_foreground(third_level_x, third_level_y, self.block_size // 100)
+                self.add_block_pixels_to_foreground(third_level_x, third_level_y, third_level_block_size)
                 canvas.create_rectangle(
-                    (x // pixel_size) * pixel_size, (y // pixel_size) * pixel_size,
-                    ((x // pixel_size) + 1) * pixel_size, ((y // pixel_size) + 1) * pixel_size,
+                    (third_level_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                    ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
                     outline='red', fill='', width=2
                 )
         elif self.marking_mode.get() == "background":
-            if self.is_block_background(third_level_x, third_level_y, self.block_size // 100):
-                self.remove_block_pixels_from_background(third_level_x, third_level_y, self.block_size // 100)
-                self.redraw_third_level_block(x // pixel_size, y // pixel_size, canvas, pixel_size)
+            if self.is_block_background(third_level_x, third_level_y, third_level_block_size):
+                self.remove_block_pixels_from_background(third_level_x, third_level_y, third_level_block_size)
+                self.redraw_third_level_block((third_level_x % (self.block_size // 10)) // third_level_block_size,
+                                            (third_level_y % (self.block_size // 10)) // third_level_block_size,
+                                            canvas, pixel_size)
             else:
-                self.add_block_pixels_to_background(third_level_x, third_level_y, self.block_size // 100)
+                self.add_block_pixels_to_background(third_level_x, third_level_y, third_level_block_size)
                 canvas.create_rectangle(
-                    (x // pixel_size) * pixel_size, (y // pixel_size) * pixel_size,
-                    ((x // pixel_size) + 1) * pixel_size, ((y // pixel_size) + 1) * pixel_size,
+                    (third_level_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                    ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
                     outline='black', fill='', width=2
                 )
         self.update_processed_image()
+
 
 
     def process_third_level_drawn_area(self, canvas, block_id, detailed_block_id, pixel_size):
@@ -816,6 +932,48 @@ class ImageLabeler:
             outline='white', fill=''
         )   
 
+    def mark_similar_color(self, event, canvas, block_id, detailed_block_id, pixel_size):
+        x = event.x
+        y = event.y
+        third_level_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10) + (x // pixel_size)
+        third_level_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10) + (y // pixel_size)
+        third_level_block_size = self.block_size // 100
+
+        target_color = self.image.getpixel((third_level_x, third_level_y))
+        tolerance = 30  # Color tolerance
+
+        for i in range(0, pixel_size * 10, pixel_size):
+            for j in range(0, pixel_size * 10, pixel_size):
+                pixel_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10) + (i // pixel_size)
+                pixel_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10) + (j // pixel_size)
+
+                current_color = self.image.getpixel((pixel_x, pixel_y))
+
+                if all(abs(current_color[k] - target_color[k]) < tolerance for k in range(3)):
+                    if self.marking_mode.get() == "foreground":
+                        if not self.is_block_foreground(pixel_x, pixel_y, third_level_block_size):
+                            self.add_block_pixels_to_foreground(pixel_x, pixel_y, third_level_block_size)
+                            canvas.create_rectangle(
+                                (pixel_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                                (pixel_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                                ((pixel_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                                ((pixel_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                                outline='red', fill='', width=2
+                            )
+                    elif self.marking_mode.get() == "background":
+                        if not self.is_block_background(pixel_x, pixel_y, third_level_block_size):
+                            self.add_block_pixels_to_background(pixel_x, pixel_y, third_level_block_size)
+                            canvas.create_rectangle(
+                                (pixel_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                                (pixel_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                                ((pixel_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                                ((pixel_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                                outline='black', fill='', width=2
+                            )
+
+        self.update_processed_image()
+
+
     def redraw_block(self, x, y):
         block_image = self.image.crop(
             (x * self.block_size, y * self.block_size, (x + 1) * self.block_size, (y + 1) * self.block_size)
@@ -852,6 +1010,7 @@ class ImageLabeler:
                     draw.point((i, j), fill = "grey")
         self.processed_photo = ImageTk.PhotoImage(self.processed_image)
         self.processed_canvas.create_image(0, 0, image=self.processed_photo, anchor=tk.NW)
+        self.update_display()
 
     def save_labels(self):
         if not self.image_path:
