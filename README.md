@@ -2,13 +2,17 @@
 
 A tool for labeling foreground and background in images with advanced features such as local/global mode, customizable tolerance, redo/undo functionality, and integration with image recognition models.
 
+
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/my-image-labeler.git
-   cd my-image-labeler
-   ```
+1. Fork the repository on GitHub:
+   - Go to the repository page on GitHub.
+   - Click the "Fork" button in the upper right corner.
+   - Clone your forked repository:
+     ```bash
+     git clone https://github.com/yourusername/Pixel-Labeler.git
+     cd Pixel-Labeler.git
+     ```
 
 2. Install the required dependencies:
    ```bash
@@ -58,20 +62,39 @@ When marking similar colors globally:
 
 ## Contributing
 
-We welcome contributions! Here's how you can help:
+We welcome contributions! Here are three ways you can help:
+### 1. Uploading and Labeling New Images
 
-1. Fork the repository.
-2. Create a new branch with your feature or bugfix.
-3. Submit a pull request.
+Upload a new image, attach a `label.json` file with existing labels, and provide a description. Follow these steps:
+1. Click "Load Image" to upload your image.
+2. Use the tool to label the image.
+3. Click "Save Labels" when finished labelling.
+5. Create a folder with image name as the title
+6. Upload the original picture, label.json, and description.txt that uses one sentence to describe the foreground object
+7. Submit a pull request.
 
-### Uploading Your Labeled Data
+### 2. Labeling Existing Unlabeled Images
 
-Save your labeled image and metadata in the `user_uploads/` directory. Make sure to include:
-- The labeled image.
-- The label file (e.g., `image_labels.txt`).
-- A prompt file (`prompt.txt`) with a short description of what you labeled (e.g., marking foreground for the cherry tree).
+Open an existing, unlabeled picture and start labeling:
+1. Select an unlabeled image from the folder "Unlabeled".
+2. Use the tool to label the image.
+3. Click "Save Labels" when finished labelling.
+5. Go to the same folder 
+6. Upload the original picture, label.json, and description.txt that uses one sentence to describe the foreground object
+7. Submit a pull request.
 
-Submit a pull request with your uploads.
+
+### 3. Challenging Existing Labeling
+
+Challenge an existing labeling by redoing the labels for a certain photo:
+1. Load an image with existing labels.
+2. Clear the current labels if necessary.
+3. Re-label the image using the tool.
+3. Click "Save Labels" when finished labelling.
+5. Go to the same folder 
+6. Upload the original picture, label.json, and description.txt that uses one sentence to describe the foreground object
+7. Submit a pull request.
+
 
 ## License
 
