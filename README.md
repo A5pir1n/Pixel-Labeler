@@ -70,17 +70,17 @@ Upload a new image, attach a `label.json` file with existing labels, and provide
 2. Use the tool to label the image.
 3. Click "Save Labels" when finished labelling.
 5. Create a folder with image name as the title
-6. Upload the original picture, label.json, and description.txt that uses one sentence to describe the foreground object
+6. Upload the original image, label.json, and description.txt that uses one sentence to describe the foreground object
 7. Submit a pull request.
 
 ### 2. Labeling Existing Unlabeled Images
 
-Open an existing, unlabeled picture and start labeling:
+Open an existing, unlabeled image and start labeling:
 1. Select an unlabeled image from the folder "Unlabeled".
 2. Use the tool to label the image.
 3. Click "Save Labels" when finished labelling.
 5. Go to the same folder 
-6. Upload the original picture, label.json, and description.txt that uses one sentence to describe the foreground object
+6. Upload the original image, label.json, and description.txt that uses one sentence to describe the foreground object
 7. Submit a pull request.
 
 
@@ -92,7 +92,7 @@ Challenge an existing labeling by redoing the labels for a certain photo:
 3. Re-label the image using the tool.
 3. Click "Save Labels" when finished labelling.
 5. Go to the same folder 
-6. Upload the original picture, label.json, and description.txt that uses one sentence to describe the foreground object
+6. Upload the original image, label.json, and description.txt that uses one sentence to describe the foreground object
 7. Submit a pull request.
 
 
