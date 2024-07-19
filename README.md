@@ -1,6 +1,6 @@
-# My Image Labeler
+# Pixel Labeler
 
-A tool for labeling foreground and background in images with advanced features such as local/global mode, customizable tolerance, redo/undo functionality, and integration with image recognition models.
+A tool for labeling ground truth box with foreground and background in images with advanced features such as local/global mode, customizable tolerance, redo/undo functionality, and integration with image recognition models.
 
 
 ## Installation
