@@ -1,5 +1,3 @@
-Sure, I'll create a comprehensive `README.md` file for your script based on the functionalities described and the provided script. Here is the content for your `README.md`:
-
 ```markdown
 # My Image Labeler
 
