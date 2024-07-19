@@ -79,6 +79,3 @@ Submit a pull request with your uploads.
 ## License
 
 This project is licensed under the MIT License.
-```
-
-Ensure you replace `"yourusername"` with your actual GitHub username in the clone URL. If you need further adjustments or additions, feel free to let me know!
