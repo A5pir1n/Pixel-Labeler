@@ -1,2 +1,7 @@
-pillow
-tkinter
+pillow==10.3.0
+tkinter==8.6
+torch==2.3.1
+torchvision==0.18.1
+matplotlib==3.9.0
+numpy==1.26.3
+certifi==2023.11.17
