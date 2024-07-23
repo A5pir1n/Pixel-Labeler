@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Labeler</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        button {
+            margin: 20px;
+            padding: 15px 25px;
+            font-size: 16px;
+        }
+        #menu {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pixel Labeler</h1>
+    <button id="uploadImage">Upload an Image</button>
+    <button id="labelExistingImages">Label Existing Images</button>
+    <button id="challengeLabeling">Challenge an Existing Labeling</button>
+    <div id="menu">
+        <button onclick="window.open('https://github.com/A5pir1n/Pixel-Labeler/blob/main/README.md')">README</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
