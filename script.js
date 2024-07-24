@@ -25,22 +25,29 @@ async function uploadFile(file) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch('https://api.github.com/repos/A5pir1n/Pixel-Labeler/contents/user_uploads/' + file.name, {
-        method: 'PUT',
-        headers: {
-            'Authorization': 'ghp_4YdFc6UVQ11nFiq',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            message: 'Upload image ' + file.name,
-            content: await fileToBase64(file),
-            branch: 'main'
-        })
-    });
+    try {
+        const response = await fetch('https://api.github.com/repos/yourusername/my-image-labeler/contents/user_uploads/' + file.name, {
+            method: 'PUT',
+            headers: {
+                'Authorization': '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',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: 'Upload image ' + file.name,
+                content: await fileToBase64(file),
+                branch: 'main'
+            })
+        });
 
-    if (response.ok) {
-        alert('File uploaded successfully!');
-    } else {
+        if (response.ok) {
+            alert('File uploaded successfully!');
+        } else {
+            const responseData = await response.json();
+            console.error('Error response from GitHub:', responseData);
+            alert('Failed to upload file: ' + responseData.message);
+        }
+    } catch (error) {
+        console.error('Error uploading file:', error);
         alert('Failed to upload file.');
     }
 }
