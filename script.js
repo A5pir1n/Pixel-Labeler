@@ -26,7 +26,7 @@ async function uploadFile(file) {
     formData.append('file', file);
 
     try {
-        const response = await fetch('https://api.github.com/repos/yourusername/my-image-labeler/contents/user_uploads/' + file.name, {
+        const response = await fetch('https://api.github.com/repos/A5pir1n/Pixel-Labeler/contents/user_uploads/' + file.name, {
             method: 'PUT',
             headers: {
                 'Authorization': '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',
