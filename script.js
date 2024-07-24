@@ -28,7 +28,7 @@ async function uploadFile(file) {
     const response = await fetch('https://api.github.com/repos/A5pir1n/Pixel-Labeler/contents/user_uploads/' + file.name, {
         method: 'PUT',
         headers: {
-            'Authorization': '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',
+            'Authorization': 'ghp_4YdFc6UVQ11nFiq',
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
