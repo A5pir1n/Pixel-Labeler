@@ -21,7 +21,7 @@ A tool for labeling ground truth box with foreground and background in images wi
 
 Run the labeling script:
 ```bash
-python labeler.py
+python label.py
 ```
 
 ## Features
