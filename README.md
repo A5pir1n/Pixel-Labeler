@@ -5,12 +5,10 @@ A tool for labeling ground truth box with foreground and background in images wi
 
 ## Installation
 
-1. Fork the repository on GitHub:
-   - Go to the repository page on GitHub.
-   - Click the "Fork" button in the upper right corner.
-   - Clone your forked repository:
+1. Clone the repository on GitHub:
+   - Clone this repository:
      ```bash
-     git clone https://github.com/yourusername/Pixel-Labeler.git
+     git clone https://github.com/A5pir1n/Pixel-Labeler.git
      cd Pixel-Labeler.git
      ```
 
@@ -23,7 +21,7 @@ A tool for labeling ground truth box with foreground and background in images wi
 
 Run the labeling script:
 ```bash
-python labeler.py
+python label.py
 ```
 
 ## Features
