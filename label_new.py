@@ -46,7 +46,6 @@ class LinkedList:
             self.tail = new_node
         self.current = new_node  # Update the current to the new node
         self.size += 1
-        print(f"Added new state. Total states: {self.size}")
 
     def undo(self):
         if self.current and self.current.prev:
@@ -59,6 +58,7 @@ class LinkedList:
             self.current = self.current.next
             return self.current.state
         return None
+
 
 class ImageLabeler:
     def __init__(self, root, block_size=100):
@@ -169,8 +169,6 @@ class ImageLabeler:
         self.canvas.bind("<Button-1>", self.start_draw_or_click)
         self.canvas.bind("<B1-Motion>", self.draw)
         self.canvas.bind("<ButtonRelease-1>", self.end_draw_or_click)
-    
-
 
     def count_states(self):
         current = self.history.head
@@ -192,6 +190,21 @@ class ImageLabeler:
         self.foreground_pixels = state["foreground_pixels"]
         self.background_pixels = state["background_pixels"]
         self.unidentified_pixels = state["unidentified_pixels"]
+
+        for tag in self.canvas.find_withtag('shade_'):
+            self.canvas.delete(tag)
+
+        # Re-apply shades based on the current state
+        for pixel in self.foreground_pixels:
+            block_x = pixel[0] // self.block_size
+            block_y = pixel[1] // self.block_size
+            self.shade_block(block_x, block_y, 'red')
+
+        for pixel in self.background_pixels:
+            block_x = pixel[0] // self.block_size
+            block_y = pixel[1] // self.block_size
+            self.shade_block(block_x, block_y, 'black')
+
         self.update_processed_image()
 
     def undo(self):
@@ -203,7 +216,6 @@ class ImageLabeler:
         state = self.history.redo()
         if state:
             self.load_state(state)
-        self.print_history()
 
     def enter_modification_mode(self):
         self.modification_mode = True
@@ -495,13 +507,13 @@ class ImageLabeler:
     def end_draw_or_click(self, event):
         if self.moved and self.drawing:
             self.drawn_lines.append([event.x, event.y])
-            if self.marking_style.get() == "circled":
-                self.process_drawn_area()
-            self.canvas.delete('blue_line')
+            if self.marking_style.get() == 'circled':
+                self.process_drawn_area(self.canvas)
         else:
-            self.process_single_click(event.x, event.y) 
+            self.process_single_click(event.x, event.y)
         self.drawing = False
         self.single_click_position = None
+        self.canvas.delete('blue_line')
         self.save_state() 
         self.update_processed_image()
 
@@ -558,75 +570,88 @@ class ImageLabeler:
                 self.background_pixels.discard((i, j))
                 self.unidentified_pixels.add((i, j))
 
+
     def process_single_click(self, x, y):
         block_x = x // self.block_size
         block_y = y // self.block_size
-        affected_pixels = []
 
         if self.marking_mode.get() == "foreground":
             if self.is_block_foreground(block_x, block_y):
                 self.remove_block_pixels_from_foreground(block_x, block_y)
+                self.clear_shade(block_x, block_y)
                 self.redraw_block(block_x, block_y)
             else:
                 self.add_block_pixels_to_foreground(block_x, block_y)
-                self.canvas.create_rectangle(
-                    block_x * self.block_size, block_y * self.block_size,
-                    (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                    outline='red', fill='', width=2
-                )
-                affected_pixels.append((block_x, block_y, "background"))
+                self.shade_block(block_x, block_y, 'red')
 
         elif self.marking_mode.get() == "background":
             if self.is_block_background(block_x, block_y):
                 self.remove_block_pixels_from_background(block_x, block_y)
+                self.clear_shade(block_x, block_y)
                 self.redraw_block(block_x, block_y)
             else:
                 self.add_block_pixels_to_background(block_x, block_y)
-                self.canvas.create_rectangle(
-                    block_x * self.block_size, block_y * self.block_size,
-                    (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                    outline='black', fill='', width=2
-                )
-                affected_pixels.append((block_x, block_y, "foreground"))
+                self.shade_block(block_x, block_y, 'black')
 
         self.update_processed_image()
 
+    def shade_block(self, block_x, block_y, color):
+        x1 = block_x * self.block_size
+        y1 = block_y * self.block_size
+        x2 = x1 + self.block_size
+        y2 = y1 + self.block_size
 
-    def process_drawn_area(self):
+        num_lines = 6
+        line_spacing = self.block_size // num_lines
+        tag = f'shade_{block_x}_{block_y}'
+
+        for i in range(1, num_lines):
+            self.canvas.create_line(x1, y2 - i * line_spacing, x1 + i * line_spacing, y2, fill=color, width=2, tags=tag)
+            self.canvas.create_line(x2 - i * line_spacing, y1, x2, y1 + i * line_spacing, fill=color, width=2, tags=tag)
+        
+        # Draw the middle diagonal line
+        self.canvas.create_line(x1, y1, x2, y2, fill=color, width=2, tags=tag)
+
+    def clear_shade(self, block_x, block_y):
+        tag = f'shade_{block_x}_{block_y}'
+        self.canvas.delete(tag)
+
+    def process_drawn_area(self, canvas):
         if len(self.drawn_lines) < 3:
-            self.canvas.delete('blue_line')
+            canvas.delete('blue_line')
             self.drawn_lines = []
             return
+
         enclosed_blocks = self.get_enclosed_blocks(self.drawn_lines)
+        affected_pixels = []
 
         if self.marking_mode.get() == "foreground":
             for block_id in enclosed_blocks:
-                if self.is_block_foreground(block_id[0], block_id[1]):
-                    self.remove_block_pixels_from_foreground(block_id[0], block_id[1])
-                    self.redraw_block(block_id[0], block_id[1])
+                block_x, block_y = block_id
+                if self.is_block_foreground(block_x, block_y):
+                    self.remove_block_pixels_from_foreground(block_x, block_y)
+                    self.clear_shade(block_x, block_y)
                 else:
-                    self.add_block_pixels_to_foreground(block_id[0], block_id[1])
-                    self.canvas.create_rectangle(
-                        block_id[0] * self.block_size, block_id[1] * self.block_size,
-                        (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                        outline='red', fill='', width=2
-                    )
+                    self.add_block_pixels_to_foreground(block_x, block_y)
+                    self.shade_block(block_x, block_y, 'red')
+                    affected_pixels.append((block_x, block_y, "background"))
+
         elif self.marking_mode.get() == "background":
             for block_id in enclosed_blocks:
-                if self.is_block_background(block_id[0], block_id[1]):
-                    self.remove_block_pixels_from_background(block_id[0], block_id[1])
-                    self.redraw_block(block_id[0], block_id[1])
+                block_x, block_y = block_id
+                if self.is_block_background(block_x, block_y):
+                    self.remove_block_pixels_from_background(block_x, block_y)
+                    self.clear_shade(block_x, block_y)
                 else:
-                    self.add_block_pixels_to_background(block_id[0], block_id[1])
-                    self.canvas.create_rectangle(
-                        block_id[0] * self.block_size, block_id[1] * self.block_size,
-                        (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                        outline='black', fill='', width=2
-                    )
+                    self.add_block_pixels_to_background(block_x, block_y)
+                    self.shade_block(block_x, block_y, 'black')
+                    affected_pixels.append((block_x, block_y, "foreground"))
 
-        self.drawn_lines = []
-        self.canvas.delete('blue_line')
         self.update_processed_image()
+        canvas.delete('blue_line')
+        self.drawn_lines = []
+        # self.save_state()
+
 
 
     def get_enclosed_blocks(self, points):
@@ -1183,32 +1208,13 @@ class ImageLabeler:
 
             self.update_display_in_modification_mode(None)
 
-
-
-
     def redraw_block(self, x, y):
-        block_image = self.image.crop(
-            (x * self.block_size, y * self.block_size, (x + 1) * self.block_size, (y + 1) * self.block_size)
-        )
-        block_photo = ImageTk.PhotoImage(block_image)
-        self.canvas.create_image(
-            x * self.block_size, y * self.block_size, image=block_photo, anchor=tk.NW
-        )
-        # Redraw the grid lines to maintain the white borders
-        self.canvas.create_line(
-            x * self.block_size, y * self.block_size, (x + 1) * self.block_size, y * self.block_size, fill='white', width=1
-        )
-        self.canvas.create_line(
-            x * self.block_size, y * self.block_size, x * self.block_size, (y + 1) * self.block_size, fill='white', width=1
-        )
-        self.canvas.create_line(
-            (x + 1) * self.block_size, y * self.block_size, (x + 1) * self.block_size, (y + 1) * self.block_size, fill='white', width=1
-        )
-        self.canvas.create_line(
-            x * self.block_size, (y + 1) * self.block_size, (x + 1) * self.block_size, (y + 1) * self.block_size, fill='white', width=1
-        )
-        # Store the image reference to avoid garbage collection
-        self.canvas.image = block_photo
+        # self.canvas.create_rectangle(
+        #     block_x * self.block_size, block_y * self.block_size,
+        #     (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
+        #     outline='white', fill=''
+        # )
+        pass
 
     def update_processed_image(self):
         draw = ImageDraw.Draw(self.processed_image)
