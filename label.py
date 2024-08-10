@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import certifi
 import os
+import copy
 import tkinter as tk
 import json
 from tkinter import filedialog
@@ -11,54 +12,147 @@ from PIL import Image, ImageTk, ImageDraw, ImageOps
 import sys
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
-class ListNode:
-    def __init__(self, state):
-        self.state = state
-        self.prev = None
-        self.next = None
+import requests
+from base64 import b64encode
+# class ListNode:
+#     def __init__(self, state):
+#         self.state = state
+#         self.next = None
+#         self.previous = None
+
+# class LinkedList:
+#     def __init__(self):
+#         self.head = None
+#         self.tail = None
+#         self.current = None
+
+#     def append(self, state):
+#         new_node = ListNode(state)
+#         if not self.head:
+#             # Initializing the list with the first node
+#             self.head = new_node
+#             self.tail = new_node
+#             self.current = new_node
+#         else:
+#             # If we're appending a new state, clear the redo history
+#             if self.current != self.tail:
+#                 self.current.next = None
+#                 self.tail = self.current
+#             self.tail.next = new_node
+#             new_node.previous = self.tail
+#             self.tail = new_node
+#             self.current = new_node
+
+#     def print_history(self):
+#         print("Action: ")
+#         current = self.head
+#         index = 1
+#         while current:
+#             fg_count = len(current.state.get("foreground_pixels", []))
+#             bg_count = len(current.state.get("background_pixels", []))
+#             un_count = len(current.state.get("unidentified_pixels", []))
+#             current_marker = " (current)" if current == self.current else ""
+#             print(f"State {index}: {fg_count} foreground, {bg_count} background, {un_count} unidentified{current_marker}")
+#             current = current.next
+#             index += 1
+#         print("   ")
 
 
-class LinkedList:
+#     def undo(self):
+#         if not self.current or not self.current.previous:
+#             print("Nothing to undo.")
+#             return None
+#         self.current = self.current.previous
+#         self.print_history()
+#         return self.current.state
+
+#     def redo(self):
+#         if not self.current or not self.current.next:
+#             print("Nothing to redo.")
+#             return None
+#         self.current = self.current.next
+#         self.print_history()
+#         return self.current.state
+
+
+
+
+class UndoRedoStack:
     def __init__(self):
-        self.head = None
-        self.tail = None
-        self.current = None
-        self.size = 0
-    
-    def append(self, state):
-        new_node = ListNode(state)
-        
-        # If we're not at the end of the list, remove all the nodes after the current one
-        if self.current and self.current.next:
-            self.current.next = None
-            self.tail = self.current
-            self.size -= 1
-            while self.tail.next:
-                self.size -= 1
-                self.tail = self.tail.next
+        self.undo_stack = []
+        self.redo_stack = []
+        self.current_state = None
 
-        if not self.head:
-            self.head = new_node
-            self.tail = new_node
+    def append(self, state):
+        fg_count = len(state.get("foreground_pixels", []))
+        bg_count = len(state.get("background_pixels", []))
+        un_count = len(state.get("unidentified_pixels", []))
+        print("Now trying to append the current state of")
+        print(f"{fg_count} foreground, {bg_count} background, {un_count} unidentified")
+        print("While the current state is now: ")
+        if self.current_state:
+            fg_count1 = len(self.current_state.get("foreground_pixels", []))
+            bg_count1 = len(self.current_state.get("background_pixels", []))
+            un_count1 = len(self.current_state.get("unidentified_pixels", []))
+            print(f"Current: {fg_count1} foreground, {bg_count1} background, {un_count1} unidentified")
         else:
-            self.tail.next = new_node
-            new_node.prev = self.tail
-            self.tail = new_node
-        self.current = new_node  # Update the current to the new node
-        self.size += 1
-        print(f"Added new state. Total states: {self.size}")
+            print("NONE")
+        if self.current_state is not None:
+            self.undo_stack.append(copy.deepcopy(self.current_state))
+        self.current_state = copy.deepcopy(state)
+        print("Now the current state becomes: ")
+        fg_count1 = len(self.current_state.get("foreground_pixels", []))
+        bg_count1 = len(self.current_state.get("background_pixels", []))
+        un_count1 = len(self.current_state.get("unidentified_pixels", []))
+        print(f"Current: {fg_count1} foreground, {bg_count1} background, {un_count1} unidentified")
+        self.redo_stack.clear()  # Clear the redo stack whenever a new state is appended
+
+    def print_history(self):
+        print("Undo Stack:")
+        for i, state in enumerate(self.undo_stack, start=1):
+            fg_count = len(state.get("foreground_pixels", []))
+            bg_count = len(state.get("background_pixels", []))
+            un_count = len(state.get("unidentified_pixels", []))
+            print(f"State {i}: {fg_count} foreground, {bg_count} background, {un_count} unidentified")
+
+        print("Current State:")
+        if self.current_state:
+            fg_count = len(self.current_state.get("foreground_pixels", []))
+            bg_count = len(self.current_state.get("background_pixels", []))
+            un_count = len(self.current_state.get("unidentified_pixels", []))
+            print(f"Current: {fg_count} foreground, {bg_count} background, {un_count} unidentified")
+
+        print("Redo Stack:")
+        for i, state in enumerate(reversed(self.redo_stack), start=1):
+            fg_count = len(state.get("foreground_pixels", []))
+            bg_count = len(state.get("background_pixels", []))
+            un_count = len(state.get("unidentified_pixels", []))
+            print(f"Redo State {i}: {fg_count} foreground, {bg_count} background, {un_count} unidentified")
+        print(" ")
 
     def undo(self):
-        if self.current and self.current.prev:
-            self.current = self.current.prev
-            return self.current.state
-        return None
+        if not self.undo_stack:
+            print("Nothing to undo.")
+            return None
+        self.redo_stack.append(copy.deepcopy(self.current_state))
+        self.current_state = self.undo_stack.pop()
+        self.print_history()
+        print("And then after the undo, ")
+        print("Now the current state becomes: ")
+        fg_count1 = len(self.current_state.get("foreground_pixels", []))
+        bg_count1 = len(self.current_state.get("background_pixels", []))
+        un_count1 = len(self.current_state.get("unidentified_pixels", []))
+        print(f"Current: {fg_count1} foreground, {bg_count1} background, {un_count1} unidentified")
+        return self.current_state
 
     def redo(self):
-        if self.current and self.current.next:
-            self.current = self.current.next
-            return self.current.state
-        return None
+        if not self.redo_stack:
+            print("Nothing to redo.")
+            return None
+        self.undo_stack.append(copy.deepcopy(self.current_state))
+        self.current_state = self.redo_stack.pop()
+        self.print_history()
+        return self.current_state
 
 class ImageLabeler:
     def __init__(self, root, block_size=100):
@@ -155,8 +249,22 @@ class ImageLabeler:
         self.single_click_position = None
         self.moved = False
 
-        self.history = LinkedList()
+        self.history = UndoRedoStack()
         self.save_state()
+
+        self.github_token_label = tk.Label(self.control_panel, text="GitHub Token:")
+        self.github_token_label.pack(side=tk.BOTTOM)
+        self.github_token_entry = tk.Entry(self.control_panel, show='*')
+        self.github_token_entry.pack(side=tk.BOTTOM)
+
+        self.github_username_label = tk.Label(self.control_panel, text="GitHub Username:")
+        self.github_username_label.pack(side=tk.BOTTOM)
+        self.github_username_entry = tk.Entry(self.control_panel)
+        self.github_username_entry.pack(side=tk.BOTTOM)
+
+        self.upload_button = tk.Button(self.control_panel, text="Upload JSON to GitHub", command=self.upload_to_github)
+        self.upload_button.pack(side=tk.BOTTOM)
+
 
         MAC_OS = False
         if sys.platform == 'darwin':
@@ -169,8 +277,46 @@ class ImageLabeler:
         self.canvas.bind("<Button-1>", self.start_draw_or_click)
         self.canvas.bind("<B1-Motion>", self.draw)
         self.canvas.bind("<ButtonRelease-1>", self.end_draw_or_click)
-    
+        # Update the key binding in the __init__ method
+        # self.canvas.bind("<Shift-Button-1>", lambda event: self.mark_similar_color(event))
 
+
+    def upload_to_github(self):
+        token = self.github_token_entry.get()
+        username = self.github_username_entry.get()
+
+        if not token or not username:
+            print("GitHub token and username are required.")
+            return
+
+        label_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+        if not label_path:
+            return
+
+        with open(label_path, 'r') as f:
+            content = f.read()
+
+        repo_name = "Pixel-Labeler"
+        branch = "main"
+        path = f"user_uploads/{os.path.basename(label_path)}"
+        message = f"Add labeled data: {os.path.basename(label_path)}"
+
+        url = f"https://api.github.com/repos/{username}/{repo_name}/contents/{path}"
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        data = {
+            "message": message,
+            "content": b64encode(content.encode()).decode(),
+            "branch": branch
+        }
+
+        response = requests.put(url, headers=headers, data=json.dumps(data))
+        if response.status_code == 201:
+            print("File uploaded successfully.")
+        else:
+            print(f"Failed to upload file: {response.json()}")
 
     def count_states(self):
         current = self.history.head
@@ -186,7 +332,44 @@ class ImageLabeler:
             "background_pixels": self.background_pixels.copy(),
             "unidentified_pixels": self.unidentified_pixels.copy()
         }
+        print("Saving state:")
+        fg_count = len(state.get("foreground_pixels", []))
+        bg_count = len(state.get("background_pixels", []))
+        un_count = len(state.get("unidentified_pixels", []))
+        print(f"Saved State: {fg_count} foreground, {bg_count} background, {un_count} unidentified")
         self.history.append(state)
+        self.history.print_history()
+
+    def apply_mask(self, canvas, block_x, block_y, color, tag):
+        x1 = block_x * self.block_size
+        y1 = block_y * self.block_size
+        x2 = (block_x + 1) * self.block_size
+        y2 = (block_y + 1) * self.block_size
+
+        # Create a transparent image
+        overlay = Image.new('RGBA', (self.block_size, self.block_size), color + (100,))
+        overlay_tk = ImageTk.PhotoImage(overlay)
+        
+        # Store the image reference to avoid garbage collection
+        self.mask_images[tag] = overlay_tk
+
+        canvas.create_image(x1, y1, image=overlay_tk, anchor=tk.NW, tags=tag)
+
+    def remove_mask(self, canvas, block_x, block_y, tag):
+        canvas.delete(tag)
+        if tag in self.mask_images:
+            del self.mask_images[tag]
+
+
+    def adjust_color_intensity(self, color, intensity):
+        r, g, b = color
+        r = int(r * intensity)
+        g = int(g * intensity)
+        b = int(b * intensity)
+        return f'#{r:02x}{g:02x}{b:02x}'
+
+
+
 
     def load_state(self, state):
         self.foreground_pixels = state["foreground_pixels"]
@@ -198,12 +381,19 @@ class ImageLabeler:
         state = self.history.undo()
         if state:
             self.load_state(state)
+            self.redraw_all_blocks()
 
     def redo(self):
         state = self.history.redo()
         if state:
             self.load_state(state)
-        self.print_history()
+            self.redraw_all_blocks()
+
+
+    def redraw_all_blocks(self):
+        for block_x in range(self.canvas.winfo_width() // self.block_size):
+            for block_y in range(self.canvas.winfo_height() // self.block_size):
+                self.redraw_block(block_x, block_y)
 
     def enter_modification_mode(self):
         self.modification_mode = True
@@ -221,19 +411,49 @@ class ImageLabeler:
         self.cancel_button.pack_forget()
 
     def apply_changes(self):
-        self.foreground_pixels.update(self.temp_foreground_pixels)
-        self.background_pixels.update(self.temp_background_pixels)
-        self.unidentified_pixels -= self.temp_foreground_pixels
-        self.unidentified_pixels -= self.temp_background_pixels
-        self.save_state() 
-        self.exit_modification_mode()
+        if not self.modification_mode:
+            return
+
+        tolerance = self.tolerance_slider.get()
+        target_color = self.reference_color
+
+        width, height = self.image.size
+        for pixel_x in range(width):
+            for pixel_y in range(height):
+                current_color = self.image.getpixel((pixel_x, pixel_y))
+                if all(abs(current_color[k] - target_color[k]) < tolerance for k in range(3)):
+                    if self.marking_mode.get() == "foreground":
+                        self.foreground_pixels.add((pixel_x, pixel_y))
+                    elif self.marking_mode.get() == "background":
+                        self.background_pixels.add((pixel_x, pixel_y))
+
+        self.modification_mode = False
+        self.temp_foreground_pixels = set()
+        self.temp_background_pixels = set()
+
+        self.save_state()
         self.update_processed_image()
-        
+
+        self.apply_button.pack_forget()
+        self.cancel_button.pack_forget()
+        self.tolerance_slider.unbind("<Motion>")
+
 
 
     def cancel_changes(self):
-        self.exit_modification_mode()
+        if not self.modification_mode:
+            return
+
+        self.modification_mode = False
+        self.temp_foreground_pixels = set()
+        self.temp_background_pixels = set()
+
         self.update_processed_image()
+
+        self.apply_button.pack_forget()
+        self.cancel_button.pack_forget()
+        self.tolerance_slider.unbind("<Motion>")
+
         
     def update_display_in_modification_mode(self, event):
         if self.modification_mode:
@@ -532,6 +752,8 @@ class ImageLabeler:
                 self.foreground_pixels.add((i, j))
                 self.unidentified_pixels.discard((i, j))
                 self.background_pixels.discard((i, j))
+        # self.apply_mask(self.canvas, x * block_size, y * block_size, block_size, (255, 0, 0))  # Red mask
+
 
     def remove_block_pixels_from_foreground(self, x, y, block_size=None):
         if block_size is None:
@@ -558,38 +780,34 @@ class ImageLabeler:
                 self.background_pixels.discard((i, j))
                 self.unidentified_pixels.add((i, j))
 
+
     def process_single_click(self, x, y):
         block_x = x // self.block_size
         block_y = y // self.block_size
-        affected_pixels = []
+        tag = f"mask_{block_x}_{block_y}"
 
         if self.marking_mode.get() == "foreground":
             if self.is_block_foreground(block_x, block_y):
                 self.remove_block_pixels_from_foreground(block_x, block_y)
-                self.redraw_block(block_x, block_y)
+                self.remove_mask(self.canvas, block_x, block_y, tag)
             else:
                 self.add_block_pixels_to_foreground(block_x, block_y)
-                self.canvas.create_rectangle(
-                    block_x * self.block_size, block_y * self.block_size,
-                    (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                    outline='red', fill='', width=2
-                )
-                affected_pixels.append((block_x, block_y, "background"))
+                self.apply_mask(self.canvas, block_x, block_y, (255, 0, 0), tag)  # Red for foreground
 
         elif self.marking_mode.get() == "background":
             if self.is_block_background(block_x, block_y):
                 self.remove_block_pixels_from_background(block_x, block_y)
-                self.redraw_block(block_x, block_y)
+                self.remove_mask(self.canvas, block_x, block_y, tag)
             else:
                 self.add_block_pixels_to_background(block_x, block_y)
-                self.canvas.create_rectangle(
-                    block_x * self.block_size, block_y * self.block_size,
-                    (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                    outline='black', fill='', width=2
-                )
-                affected_pixels.append((block_x, block_y, "foreground"))
+                self.apply_mask(self.canvas, block_x, block_y, (0, 0, 0), tag)  # Black for background
 
         self.update_processed_image()
+
+
+
+
+
 
 
     def process_drawn_area(self):
@@ -935,7 +1153,6 @@ class ImageLabeler:
         third_level_canvas.bind("<B1-Motion>", lambda event: self.draw_third_level(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
         third_level_canvas.bind("<ButtonRelease-1>", lambda event: self.end_third_level_draw_or_click(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
 
-        # Bind right-click to mark_similar_color
         third_level_canvas.bind("<Button-2>", lambda event: self.mark_similar_color(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
 
         # Store the image reference to avoid garbage collection
@@ -1129,6 +1346,120 @@ class ImageLabeler:
             (x + 1) * pixel_size, (y + 1) * pixel_size,
             outline='white', fill=''
         )   
+    def calculate_average_color(self, x_start, y_start, block_size):
+        pixels = []
+        for x in range(x_start, x_start + block_size):
+            for y in range(y_start, y_start + block_size):
+                pixels.append(self.image.getpixel((x, y)))
+        avg_color = tuple(sum(c) // len(c) for c in zip(*pixels))
+        return avg_color
+        
+    # def mark_similar_color(self, event, canvas, block_id=None, detailed_block_id=None, pixel_size=None):
+    #     if event.state & 0x0001:  # Check if SHIFT is pressed
+    #         x, y = event.x, event.y
+
+    #         if block_id is None and detailed_block_id is None:  # First level window
+    #             block_x, block_y = x // self.block_size, y // self.block_size
+    #             avg_color = self.calculate_average_color(block_x * self.block_size, block_y * self.block_size, self.block_size)
+    #             tolerance = self.tolerance_slider.get()
+
+    #             for i in range(0, self.image.width, self.block_size):
+    #                 for j in range(0, self.image.height, self.block_size):
+    #                     current_color = self.calculate_average_color(i, j, self.block_size)
+    #                     if all(abs(current_color[k] - avg_color[k]) < tolerance for k in range(3)):
+    #                         if self.marking_mode.get() == "foreground":
+    #                             self.add_block_pixels_to_foreground(i, j, self.block_size)
+    #                             canvas.create_rectangle(
+    #                                 i, j, i + self.block_size, j + self.block_size,
+    #                                 outline='red', fill='', width=2
+    #                             )
+    #                         elif self.marking_mode.get() == "background":
+    #                             self.add_block_pixels_to_background(i, j, self.block_size)
+    #                             canvas.create_rectangle(
+    #                                 i, j, i + self.block_size, j + self.block_size,
+    #                                 outline='black', fill='', width=2
+    #                             )
+    #             self.save_state()
+    #             self.update_processed_image()
+
+    #         elif detailed_block_id is None:  # Second level window
+    #             block_x, block_y = x // (self.block_size // 10), y // (self.block_size // 10)
+    #             avg_color = self.calculate_average_color(block_id[0] * self.block_size + block_x * (self.block_size // 10),
+    #                                                     block_id[1] * self.block_size + block_y * (self.block_size // 10),
+    #                                                     self.block_size // 10)
+    #             tolerance = self.tolerance_slider.get()
+
+    #             for i in range(0, self.block_size, self.block_size // 10):
+    #                 for j in range(0, self.block_size, self.block_size // 10):
+    #                     pixel_x = block_id[0] * self.block_size + (i // (self.block_size // 10)) * (self.block_size // 10)
+    #                     pixel_y = block_id[1] * self.block_size + (j // (self.block_size // 10)) * (self.block_size // 10)
+    #                     current_color = self.calculate_average_color(pixel_x, pixel_y, self.block_size // 10)
+    #                     if all(abs(current_color[k] - avg_color[k]) < tolerance for k in range(3)):
+    #                         if self.marking_mode.get() == "foreground":
+    #                             self.add_block_pixels_to_foreground(pixel_x, pixel_y, self.block_size // 10)
+    #                             canvas.create_rectangle(
+    #                                 i, j, i + (self.block_size // 10), j + (self.block_size // 10),
+    #                                 outline='red', fill='', width=2
+    #                             )
+    #                         elif self.marking_mode.get() == "background":
+    #                             self.add_block_pixels_to_background(pixel_x, pixel_y, self.block_size // 10)
+    #                             canvas.create_rectangle(
+    #                                 i, j, i + (self.block_size // 10), j + (self.block_size // 10),
+    #                                 outline='black', fill='', width=2
+    #                             )
+    #             self.save_state()
+    #             self.update_processed_image()
+
+    #         else:  # Third level window
+    #             third_level_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10) + (x // pixel_size)
+    #             third_level_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10) + (y // pixel_size)
+    #             third_level_block_size = self.block_size // 100
+
+    #             target_color = self.image.getpixel((third_level_x, third_level_y))
+    #             tolerance = self.tolerance_slider.get()  # Get tolerance from slider
+
+    #             if self.marking_scope.get() == "local":
+    #                 for i in range(0, pixel_size * 10, pixel_size):
+    #                     for j in range(0, pixel_size * 10, pixel_size):
+    #                         pixel_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10) + (i // pixel_size)
+    #                         pixel_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10) + (j // pixel_size)
+
+    #                         current_color = self.image.getpixel((pixel_x, pixel_y))
+
+    #                         if all(abs(current_color[k] - target_color[k]) < tolerance for k in range(3)):
+    #                             if self.marking_mode.get() == "foreground":
+    #                                 self.add_block_pixels_to_foreground(pixel_x, pixel_y, third_level_block_size)
+    #                                 canvas.create_rectangle(
+    #                                     (pixel_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+    #                                     (pixel_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+    #                                     ((pixel_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+    #                                     ((pixel_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+    #                                     outline='red', fill='', width=2
+    #                                 )
+    #                             elif self.marking_mode.get() == "background":
+    #                                 self.add_block_pixels_to_background(pixel_x, pixel_y, third_level_block_size)
+    #                                 canvas.create_rectangle(
+    #                                     (pixel_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+    #                                     (pixel_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+    #                                     ((pixel_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+    #                                     ((pixel_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+    #                                     outline='black', fill='', width=2
+    #                                 )
+    #                 self.save_state()
+    #                 self.update_processed_image()
+    #             elif self.marking_scope.get() == "global":
+    #                 if not self.modification_mode:
+    #                     self.enter_modification_mode()
+
+    #                 self.temp_foreground_pixels = set()
+    #                 self.temp_background_pixels = set()
+
+    #                 self.reference_color = target_color
+    #                 self.reference_block_id = block_id
+    #                 self.reference_detailed_block_id = detailed_block_id
+    #                 self.reference_pixel_size = pixel_size
+
+    #                 self.update_display_in_modification_mode(tolerance)
 
     def mark_similar_color(self, event, canvas, block_id, detailed_block_id, pixel_size):
         x = event.x
@@ -1181,34 +1512,18 @@ class ImageLabeler:
             self.reference_detailed_block_id = detailed_block_id
             self.reference_pixel_size = pixel_size
 
-            self.update_display_in_modification_mode(None)
+            self.update_display_in_modification_mode(tolerance)
+
+    def redraw_block(self, block_x, block_y):
+        tag = f"mask_{block_x}_{block_y}"
+        if self.is_block_foreground(block_x, block_y):
+            self.apply_mask(self.canvas, block_x, block_y, (255, 0, 0), tag)  # Red for foreground
+        elif self.is_block_background(block_x, block_y):
+            self.apply_mask(self.canvas, block_x, block_y, (0, 0, 0), tag)  # Black for background
+        else:
+            self.remove_mask(self.canvas, block_x, block_y, tag)
 
 
-
-
-    def redraw_block(self, x, y):
-        block_image = self.image.crop(
-            (x * self.block_size, y * self.block_size, (x + 1) * self.block_size, (y + 1) * self.block_size)
-        )
-        block_photo = ImageTk.PhotoImage(block_image)
-        self.canvas.create_image(
-            x * self.block_size, y * self.block_size, image=block_photo, anchor=tk.NW
-        )
-        # Redraw the grid lines to maintain the white borders
-        self.canvas.create_line(
-            x * self.block_size, y * self.block_size, (x + 1) * self.block_size, y * self.block_size, fill='white', width=1
-        )
-        self.canvas.create_line(
-            x * self.block_size, y * self.block_size, x * self.block_size, (y + 1) * self.block_size, fill='white', width=1
-        )
-        self.canvas.create_line(
-            (x + 1) * self.block_size, y * self.block_size, (x + 1) * self.block_size, (y + 1) * self.block_size, fill='white', width=1
-        )
-        self.canvas.create_line(
-            x * self.block_size, (y + 1) * self.block_size, (x + 1) * self.block_size, (y + 1) * self.block_size, fill='white', width=1
-        )
-        # Store the image reference to avoid garbage collection
-        self.canvas.image = block_photo
 
     def update_processed_image(self):
         draw = ImageDraw.Draw(self.processed_image)
