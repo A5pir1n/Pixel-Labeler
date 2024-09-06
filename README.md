@@ -9,12 +9,12 @@ A tool for labeling ground truth box with foreground and background in images wi
    - Clone this repository:
      ```bash
      git clone https://github.com/A5pir1n/Pixel-Labeler.git
-     cd Pixel-Labeler.git
+     cd Pixel-Labeler
      ```
 
 2. Install the required dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt
    ```
 
 ## Usage
