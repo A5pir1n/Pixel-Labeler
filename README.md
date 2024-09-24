@@ -1,99 +1,153 @@
 # Pixel Labeler
 
-A tool for labeling ground truth box with foreground and background in images with advanced features such as local/global mode, customizable tolerance, redo/undo functionality, and integration with image recognition models.
+A powerful tool for labeling images with foreground and background segmentation, featuring advanced functionalities such as local and global marking modes, customizable tolerance levels, undo/redo capabilities, and integration with image recognition models. The tool now includes optimized performance with NumPy, an "Unidentified" marking mode, pixel locking, and enhanced saving options.
 
+---
 
 ## Installation
 
-1. Clone the repository on GitHub:
-   - Clone this repository:
-     ```bash
-     git clone https://github.com/A5pir1n/Pixel-Labeler.git
-     cd Pixel-Labeler
-     ```
+1. **Clone the Repository:**
 
-2. Install the required dependencies:
+   ```bash
+   git clone https://github.com/A5pir1n/Pixel-Labeler.git
+   cd Pixel-Labeler
+   ```
+
+2. **Install Required Dependencies:**
+
    ```bash
    pip3 install -r requirements.txt
    ```
 
+---
+
 ## Usage
 
 Run the labeling script:
+
 ```bash
-python label.py
+python3 label.py
 ```
+
+---
 
 ## Features
 
 ### Main Window
 
 - **Load Image**: Load an image from your local system to start labeling.
-- **Save Labels**: Save the labeled data to a file.
+- **Save Labels**: Save the labeled data to a folder containing both a `.npy` file and a black and white image of the labels.
 - **Load Labels**: Load previously saved labels to continue working on them.
 - **Clear All**: Clear all labels and reset the image.
 - **Classify by SAM**: Use Meta's Segment Anything Model (SAM) to classify the image based on thresholds set by the user.
 - **Load Custom Model**: Load a custom image recognition model for classification.
-- **Redo**: Redo the last undone action.
-- **Undo**: Undo the last action.
-- **Lambda Slider**: Adjust the display between the original image and the labeled black/white image.
+- **Undo/Redo**: Undo or redo actions to facilitate efficient labeling.
+- **Lambda Slider**: Adjust the display blend between the original image and the labeled image.
 - **Tolerance Slider**: Adjust the tolerance level for color similarity when marking similar colors.
-- **Marking Foreground/Background**: Toggle between marking foreground and background.
-- **Marking on Circled/Dragged Areas**: Choose between marking enclosed areas or dragged lines.
+- **Marking Modes**:
+  - **Marking Foreground**: Mark selected areas as foreground.
+  - **Marking Background**: Mark selected areas as background.
+  - **Mark Unidentified**: Reset selected areas to unidentified.
+- **Marking Styles**:
+  - **Circled Areas**: Enclose areas to mark them.
+  - **Dragged Lines**: Draw lines to mark areas.
 - **Local/Global Mode**: Toggle between local and global marking modes.
+- **Lock/Unlock Pixels**: Lock the current marked pixels to prevent further modifications, and unlock them when needed.
+
+---
 
 ### Detailed Windows
 
-Right-clicking on a grid in the main window opens a detailed view. Right-clicking on a grid in the detailed window opens a more detailed view. The following functionalities are available:
+#### Accessing Detailed Views
 
-- **Single Click**: Toggle the grid's status between foreground, background, and unidentified.
-- **Hold and Drag**: Draw lines to mark multiple grids.
-- **Right Click (Local Mode)**: Mark all similar colors within the current detailed window.
-- **Right Click (Global Mode)**: Enter modification mode to mark similar colors globally with adjustable tolerance.
+- **Right-Click on Main Grid**: Opens a detailed view (second-level window) of the selected grid.
+- **Right-Click on Detailed Grid**: Opens a more detailed view (third-level window) of the selected grid in the detailed window.
+
+#### Functionalities in Detailed Views
+
+- **Single Click**:
+  - **Toggle Marking**: Click on a grid to toggle its status between foreground, background, and unidentified based on the current marking mode.
+- **Hold and Drag**:
+  - **Mark Multiple Grids**: Draw lines to mark multiple grids quickly.
+- **Shift + Left Click**:
+  - **Mark Similar Colors Locally**: In the detailed window, hold the Shift key and left-click on a grid to mark all similar colors within the detailed window based on average color and tolerance level.
+- **Right Click (Global Mode)**:
+  - **Enter Modification Mode**: Mark similar colors globally across the entire image.
+  
+---
 
 ### Modification Mode (Global Only)
 
 When marking similar colors globally:
-- **Apply**: Apply the changes.
-- **Cancel**: Discard the changes.
-- **Adjust Tolerance**: Dynamically adjust the tolerance level during modification mode.
+
+- **Apply**: Apply the changes made during modification mode.
+- **Cancel**: Discard the changes and revert to the previous state.
+- **Adjust Tolerance**: Dynamically adjust the tolerance level during modification mode to fine-tune the selection.
+
+---
+
+### Lock and Unlock Pixels
+
+- **Lock**: Lock the current marked pixels (both foreground and background) to prevent further modifications. Only unidentified pixels can be modified after locking.
+- **Unlock**: Unlock all pixels, allowing them to be modified again.
+
+---
 
 ## Contributing
 
 We welcome contributions! Here are three ways you can help:
+
 ### 1. Uploading and Labeling New Images
 
-Upload a new image, attach a `label.json` file with existing labels, and provide a description. Follow these steps:
-1. Click "Load Image" to upload your image.
-2. Use the tool to label the image.
-3. Click "Save Labels" when finished labelling.
-5. Create a folder with image name as the title
-6. Upload the original image, label.json, and description.txt that uses one sentence to describe the foreground object
-7. Submit a pull request.
+Upload a new image, attach the labels, and provide a description.
+
+**Steps:**
+
+1. **Load an Image**: Click "Load Image" to upload your image.
+2. **Label the Image**: Use the tool to label the image.
+3. **Save Labels**: Click "Save Labels" when finished labeling.
+4. **Prepare Folder**:
+   - Create a folder with the image name as the title.
+   - Include the original image.
+   - Include the labels folder generated (contains `.npy` file and label image).
+   - Add a `description.txt` file with a one-sentence description of the foreground object.
+5. **Submit a Pull Request**: Upload the folder to the repository and submit a pull request.
 
 ### 2. Labeling Existing Unlabeled Images
 
-Open an existing, unlabeled image and start labeling:
-1. Select an unlabeled image from the folder "Unlabeled".
-2. Use the tool to label the image.
-3. Click "Save Labels" when finished labelling.
-5. Go to the same folder 
-6. Upload the original image, label.json, and description.txt that uses one sentence to describe the foreground object
-7. Submit a pull request.
+Select an unlabeled image and start labeling.
 
+**Steps:**
+
+1. **Select an Unlabeled Image**: Choose an image from the "Unlabeled" folder.
+2. **Label the Image**: Use the tool to label the image.
+3. **Save Labels**: Click "Save Labels" when finished labeling.
+4. **Update Folder**:
+   - Go to the same folder.
+   - Include the labels folder generated.
+   - Add a `description.txt` file with a one-sentence description of the foreground object.
+5. **Submit a Pull Request**: Upload the updated folder to the repository and submit a pull request.
 
 ### 3. Challenging Existing Labeling
 
-Challenge an existing labeling by redoing the labels for a certain photo:
-1. Load an image with existing labels.
-2. Clear the current labels if necessary.
-3. Re-label the image using the tool.
-3. Click "Save Labels" when finished labelling.
-5. Go to the same folder 
-6. Upload the original image, label.json, and description.txt that uses one sentence to describe the foreground object
-7. Submit a pull request.
+Redo the labels for an existing image to improve or correct them.
 
+**Steps:**
+
+1. **Load an Image with Existing Labels**: Use "Load Image" and "Load Labels" to open an image and its labels.
+2. **Clear or Modify Labels**: Use "Clear All" if necessary, or modify the existing labels.
+3. **Re-label the Image**: Use the tool to re-label the image.
+4. **Save Labels**: Click "Save Labels" when finished labeling.
+5. **Update Folder**:
+   - Go to the same folder.
+   - Replace or update the labels folder.
+   - Update the `description.txt` if necessary.
+6. **Submit a Pull Request**: Upload the updated folder to the repository and submit a pull request.
+
+---
 
 ## License
 
 This project is licensed under the MIT License.
+
+---
