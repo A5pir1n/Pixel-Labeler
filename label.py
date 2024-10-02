@@ -662,37 +662,32 @@ class ImageLabeler:
 
         if self.marking_mode.get() == "foreground":
             for block_id in enclosed_blocks:
-                if self.is_block_foreground(block_id[0], block_id[1]):
-                    self.remove_block_pixels_from_foreground(block_id[0], block_id[1])
-                    self.redraw_block(block_id[0], block_id[1])
-                else:
-                    self.add_block_pixels_to_foreground(block_id[0], block_id[1])
-                    self.canvas.create_rectangle(
-                        block_id[0] * self.block_size, block_id[1] * self.block_size,
-                        (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                        outline='red', fill='', width=2
-                    )
+                # Directly set the block to foreground
+                self.add_block_pixels_to_foreground(block_id[0], block_id[1])
+                self.canvas.create_rectangle(
+                    block_id[0] * self.block_size, block_id[1] * self.block_size,
+                    (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
+                    outline='red', fill='', width=2
+                )
         elif self.marking_mode.get() == "background":
             for block_id in enclosed_blocks:
-                if self.is_block_background(block_id[0], block_id[1]):
-                    self.remove_block_pixels_from_background(block_id[0], block_id[1])
-                    self.redraw_block(block_id[0], block_id[1])
-                else:
-                    self.add_block_pixels_to_background(block_id[0], block_id[1])
-                    self.canvas.create_rectangle(
-                        block_id[0] * self.block_size, block_id[1] * self.block_size,
-                        (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                        outline='black', fill='', width=2
-                    )
+                # Directly set the block to background
+                self.add_block_pixels_to_background(block_id[0], block_id[1])
+                self.canvas.create_rectangle(
+                    block_id[0] * self.block_size, block_id[1] * self.block_size,
+                    (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
+                    outline='black', fill='', width=2
+                )
         elif self.marking_mode.get() == "unidentified":
             for block_id in enclosed_blocks:
+                # Directly set the block to unidentified
                 self.set_block_to_unidentified(block_id[0], block_id[1])
                 self.redraw_block(block_id[0], block_id[1])
-
 
         self.drawn_lines = []
         self.canvas.delete('blue_line')
         self.update_processed_image()
+
 
 
     def get_enclosed_blocks(self, points):
@@ -952,38 +947,36 @@ class ImageLabeler:
             for pixel_id in enclosed_blocks:
                 detailed_x = pixel_id[0]
                 detailed_y = pixel_id[1]
-                block_x = base_x + (detailed_x * detailed_block_size)
-                block_y = base_y + (detailed_y * detailed_block_size)
-                if self.is_block_foreground(detailed_x, detailed_y, detailed_block_size):
-                    self.remove_block_pixels_from_foreground(detailed_x, detailed_y, detailed_block_size)
-                    self.redraw_detailed_block(detailed_x, detailed_y, canvas, small_block_size)
-                else:
-                    self.add_block_pixels_to_foreground(detailed_x, detailed_y, detailed_block_size)
-                    canvas.create_rectangle(
-                        (detailed_x % 10) * small_block_size, (detailed_y % 10) * small_block_size,
-                        ((detailed_x % 10) + 1) * small_block_size, ((detailed_y % 10) + 1) * small_block_size,
-                        outline='red', fill='', width=2
-                    )
+                # Directly set to foreground
+                self.add_block_pixels_to_foreground(detailed_x, detailed_y, detailed_block_size)
+                canvas.create_rectangle(
+                    (detailed_x % 10) * small_block_size, (detailed_y % 10) * small_block_size,
+                    ((detailed_x % 10) + 1) * small_block_size, ((detailed_y % 10) + 1) * small_block_size,
+                    outline='red', fill='', width=2
+                )
         elif self.marking_mode.get() == "background":
             for pixel_id in enclosed_blocks:
                 detailed_x = pixel_id[0]
                 detailed_y = pixel_id[1]
-                block_x = base_x + (detailed_x * detailed_block_size)
-                block_y = base_y + (detailed_y * detailed_block_size)
-                if self.is_block_background(detailed_x, detailed_y, detailed_block_size):
-                    self.remove_block_pixels_from_background(detailed_x, detailed_y, detailed_block_size)
-                    self.redraw_detailed_block(detailed_x, detailed_y, canvas, small_block_size)
-                else:
-                    self.add_block_pixels_to_background(detailed_x, detailed_y, detailed_block_size)
-                    canvas.create_rectangle(
-                        (detailed_x % 10) * small_block_size, (detailed_y % 10) * small_block_size,
-                        ((detailed_x % 10) + 1) * small_block_size, ((detailed_y % 10) + 1) * small_block_size,
-                        outline='black', fill='', width=2
-                    )
+                # Directly set to background
+                self.add_block_pixels_to_background(detailed_x, detailed_y, detailed_block_size)
+                canvas.create_rectangle(
+                    (detailed_x % 10) * small_block_size, (detailed_y % 10) * small_block_size,
+                    ((detailed_x % 10) + 1) * small_block_size, ((detailed_y % 10) + 1) * small_block_size,
+                    outline='black', fill='', width=2
+                )
+        elif self.marking_mode.get() == "unidentified":
+            for pixel_id in enclosed_blocks:
+                detailed_x = pixel_id[0]
+                detailed_y = pixel_id[1]
+                # Directly set to unidentified
+                self.set_block_to_unidentified(detailed_x, detailed_y, detailed_block_size)
+                self.redraw_detailed_block(detailed_x, detailed_y, canvas, small_block_size)
 
         self.drawn_lines = []
         canvas.delete('blue_line')
         self.update_processed_image()
+
 
 
     def get_detailed_enclosed_blocks(self, points, block_id, small_block_size):
@@ -1283,7 +1276,6 @@ class ImageLabeler:
 
         self.update_processed_image()
 
-
     def process_third_level_drawn_area(self, canvas, block_id, detailed_block_id, pixel_size):
         if len(self.drawn_lines) < 3:
             canvas.delete('blue_line')
@@ -1297,38 +1289,37 @@ class ImageLabeler:
             for pixel_id in enclosed_blocks:
                 third_level_x = pixel_id[0]
                 third_level_y = pixel_id[1]
-                if self.is_block_foreground(third_level_x, third_level_y, third_level_block_size):
-                    self.remove_block_pixels_from_foreground(third_level_x, third_level_y, third_level_block_size)
-                    self.redraw_third_level_block((third_level_x % (self.block_size // 10)) // third_level_block_size,
-                                                (third_level_y % (self.block_size // 10)) // third_level_block_size,
-                                                canvas, pixel_size)
-                else:
-                    self.add_block_pixels_to_foreground(third_level_x, third_level_y, third_level_block_size)
-                    canvas.create_rectangle(
-                        (third_level_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
-                        (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
-                        ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                        ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                        outline='red', fill='', width=2
-                    )
+                # Directly set to foreground
+                self.add_block_pixels_to_foreground(third_level_x, third_level_y, third_level_block_size)
+                canvas.create_rectangle(
+                    (third_level_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                    ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                    outline='red', fill='', width=2
+                )
         elif self.marking_mode.get() == "background":
             for pixel_id in enclosed_blocks:
                 third_level_x = pixel_id[0]
                 third_level_y = pixel_id[1]
-                if self.is_block_background(third_level_x, third_level_y, third_level_block_size):
-                    self.remove_block_pixels_from_background(third_level_x, third_level_y, third_level_block_size)
-                    self.redraw_third_level_block((third_level_x % (self.block_size // 10)) // third_level_block_size,
-                                                (third_level_y % (self.block_size // 10)) // third_level_block_size,
-                                                canvas, pixel_size)
-                else:
-                    self.add_block_pixels_to_background(third_level_x, third_level_y, third_level_block_size)
-                    canvas.create_rectangle(
-                        (third_level_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
-                        (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
-                        ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                        ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                        outline='black', fill='', width=2
-                    )
+                # Directly set to background
+                self.add_block_pixels_to_background(third_level_x, third_level_y, third_level_block_size)
+                canvas.create_rectangle(
+                    (third_level_x % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
+                    ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                    ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
+                    outline='black', fill='', width=2
+                )
+        elif self.marking_mode.get() == "unidentified":
+            for pixel_id in enclosed_blocks:
+                third_level_x = pixel_id[0]
+                third_level_y = pixel_id[1]
+                # Directly set to unidentified
+                self.set_block_to_unidentified(third_level_x, third_level_y, third_level_block_size)
+                self.redraw_third_level_block((third_level_x % (self.block_size // 10)) // third_level_block_size,
+                                            (third_level_y % (self.block_size // 10)) // third_level_block_size,
+                                            canvas, pixel_size)
 
         self.drawn_lines = []
         canvas.delete('blue_line')
