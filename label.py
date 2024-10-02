@@ -776,7 +776,12 @@ class ImageLabeler:
                     detailed_canvas.create_line([(i, j + small_block_size), (i + small_block_size, j + small_block_size)], fill='white')
 
         detailed_canvas.bind("<Button-1>", lambda event: self.start_detailed_draw_or_click(event, detailed_canvas, block_id, small_block_size))
-        detailed_canvas.bind("<Button-2>", lambda event: self.on_detailed_right_click(event, detailed_canvas, block_id, small_block_size))
+        if sys.platform == 'darwin':
+            # macOS uses <Button-2> for right-click
+            detailed_canvas.bind("<Button-2>", lambda event: self.on_detailed_right_click(event, detailed_canvas, block_id, small_block_size))
+        else:
+            # Windows and Linux use <Button-3>
+            detailed_canvas.bind("<Button-3>", lambda event: self.on_detailed_right_click(event, detailed_canvas, block_id, small_block_size))
         detailed_canvas.bind("<B1-Motion>", lambda event: self.draw_detailed(event, detailed_canvas, block_id, small_block_size))
         detailed_canvas.bind("<ButtonRelease-1>", lambda event: self.end_detailed_draw_or_click(event, detailed_canvas, block_id, small_block_size))
         detailed_canvas.bind("<Shift-Button-1>", lambda event: self.mark_similar_color_detailed(event, detailed_canvas, block_id, small_block_size))
@@ -1152,7 +1157,7 @@ class ImageLabeler:
             third_level_canvas.bind("<Button-2>", lambda event: self.mark_similar_color(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
         else:
             # Windows and Linux use <Button-3>
-            third_level_canvas.bind("<Shift-Button-1>", lambda event: self.mark_similar_color(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
+            third_level_canvas.bind("<Button-3>", lambda event: self.mark_similar_color(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
         
         # Store the image reference to avoid garbage collection
         third_level_canvas.image = third_level_photo
