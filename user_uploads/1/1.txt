@@ -1,1 +1,0 @@
-Segmentation of the foreground cherry tree in the image
