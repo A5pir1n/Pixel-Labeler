@@ -1,6 +1,6 @@
 # Pixel Labeler
 
-A powerful tool for labeling images with foreground and background segmentation, featuring advanced functionalities such as local and global marking modes, customizable tolerance levels, undo/redo capabilities, and integration with image recognition models.
+A powerful tool for labeling images with foreground and background segmentation, featuring advanced functionalities such as local and global marking modes, customizable tolerance levels, and integration with image recognition models.
 
 ## Installation
 
