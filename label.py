@@ -209,6 +209,9 @@ class ImageLabeler:
     def load_state(self, state):
         self.labels = state.copy()
         self.update_processed_image()
+        self.redraw_all_blocks()
+        self.update_detailed_canvases()
+        self.update_third_level_canvases()
 
 
     def undo(self):
@@ -1392,6 +1395,10 @@ class ImageLabeler:
             self.update_display_in_modification_mode(None)
 
 
+    def redraw_all_blocks(self):
+        for x in range(0, self.image.width // self.block_size):
+            for y in range(0, self.image.height // self.block_size):
+                self.redraw_block(x, y)
 
 
     def redraw_block(self, x, y):
