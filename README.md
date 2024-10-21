@@ -17,6 +17,12 @@ A powerful tool for labeling images with foreground and background segmentation,
    pip3 install -r requirements.txt
    ```
 
+3. **If Already Have Pixel-Labeler Installed And There's New Version:**
+
+   ```bash
+   git pull
+   ```
+
 ---
 
 ## Usage
