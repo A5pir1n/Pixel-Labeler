@@ -157,6 +157,12 @@ class ImageLabeler:
         self.single_click_position = None
         self.moved = False
 
+        self.open_detailed_windows = []
+        self.open_detailed_canvases = []
+
+        self.open_third_level_windows = []
+        self.open_third_level_canvases = []
+
         # Add Lock and Unlock buttons
         self.lock_button = tk.Button(self.control_panel, text="Lock", command=self.lock_pixels)
         self.unlock_button = tk.Button(self.control_panel, text="Unlock", command=self.unlock_pixels)
@@ -200,19 +206,171 @@ class ImageLabeler:
             count += 1
             current = current.next
         return count
-
+    
     def save_state(self):
         state = self.labels.copy()
         self.history.append(state)
+        self.update_left_canvas_borders()
+        self.update_detailed_canvas_borders()
+        self.update_third_level_canvas_borders()
 
 
     def load_state(self, state):
         self.labels = state.copy()
         self.update_processed_image()
-        self.redraw_all_blocks()
-        self.update_detailed_canvases()
-        self.update_third_level_canvases()
+        self.update_left_canvas_borders()
+        self.update_detailed_canvas_borders()
+        self.update_third_level_canvas_borders()
 
+
+    def update_left_canvas_borders(self):
+        # Clear existing borders
+        self.canvas.delete('border')
+
+        # Calculate the number of blocks in x and y directions
+        num_blocks_x = (self.image.width + self.block_size - 1) // self.block_size
+        num_blocks_y = (self.image.height + self.block_size - 1) // self.block_size
+
+        for block_x in range(num_blocks_x):
+            for block_y in range(num_blocks_y):
+                x_start = block_x * self.block_size
+                y_start = block_y * self.block_size
+                x_end = min(x_start + self.block_size, self.image.width)
+                y_end = min(y_start + self.block_size, self.image.height)
+
+                # Extract labels for the current block
+                block_labels = self.labels[y_start:y_end, x_start:x_end]
+
+                # Determine the block's label
+                if np.all(block_labels == 255):  # Foreground
+                    self.canvas.create_rectangle(
+                        x_start, y_start, x_end, y_end,
+                        outline='red', fill='', width=2, tags='border'
+                    )
+                elif np.all(block_labels == 0):  # Background
+                    self.canvas.create_rectangle(
+                        x_start, y_start, x_end, y_end,
+                        outline='black', fill='', width=2, tags='border'
+                    )
+                else:
+                    # Optionally handle unidentified or mixed blocks
+                    pass
+
+    def update_detailed_canvas_borders(self):
+        for idx, (canvas, block_id) in enumerate(self.open_detailed_canvases):
+            # Check if the window is still open
+            if not self.open_detailed_windows[idx].winfo_exists():
+                continue  # Skip if window is closed
+
+            self.redraw_detailed_canvas(canvas, block_id)
+
+    def redraw_detailed_canvas(self, canvas, block_id):
+        # Clear the canvas
+        canvas.delete('all')
+
+        # Re-create the image and borders
+        block_image = self.image.crop(
+            (block_id[0] * self.block_size, block_id[1] * self.block_size, 
+            (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size)
+        )
+        detailed_image = block_image.resize((self.block_size * 10, self.block_size * 10), Image.LANCZOS)
+        detailed_photo = ImageTk.PhotoImage(detailed_image)
+
+        canvas.config(width=detailed_photo.width(), height=detailed_photo.height())
+        canvas.create_image(0, 0, image=detailed_photo, anchor=tk.NW)
+
+        # Draw the smaller grid and mark foreground/background pixels
+        small_block_size = detailed_photo.width() // 10
+        for i in range(0, detailed_photo.width(), small_block_size):
+            for j in range(0, detailed_photo.height(), small_block_size):
+                # Calculate the actual pixel position in the image
+                image_x = block_id[0] * self.block_size + (i // small_block_size) * (self.block_size // 10)
+                image_y = block_id[1] * self.block_size + (j // small_block_size) * (self.block_size // 10)
+
+                if image_x >= self.labels.shape[1] or image_y >= self.labels.shape[0]:
+                    continue  # Skip pixels outside the image
+
+                label_value = self.labels[image_y, image_x]
+
+                if label_value == 255:  # Foreground
+                    canvas.create_rectangle(
+                        i, j,
+                        i + small_block_size, j + small_block_size,
+                        outline='red', fill='', width=2, tags='border'
+                    )
+                elif label_value == 0:  # Background
+                    canvas.create_rectangle(
+                        i, j,
+                        i + small_block_size, j + small_block_size,
+                        outline='black', fill='', width=2, tags='border'
+                    )
+                else:
+                    # Unidentified pixels; draw grid lines
+                    canvas.create_line([(i, j), (i, j + small_block_size)], fill='white', tags='border')
+                    canvas.create_line([(i, j), (i + small_block_size, j)], fill='white', tags='border')
+                    canvas.create_line([(i + small_block_size, j), (i + small_block_size, j + small_block_size)], fill='white', tags='border')
+                    canvas.create_line([(i, j + small_block_size), (i + small_block_size, j + small_block_size)], fill='white', tags='border')
+
+        # Store the image reference
+        canvas.image = detailed_photo
+
+    def update_third_level_canvas_borders(self):
+        for idx, (canvas, block_id, detailed_block_id) in enumerate(self.open_third_level_canvases):
+            if not self.open_third_level_windows[idx].winfo_exists():
+                continue 
+
+            self.redraw_third_level_canvas(canvas, block_id, detailed_block_id)
+
+    def redraw_third_level_canvas(self, canvas, block_id, detailed_block_id):
+        # Clear the canvas
+        canvas.delete('all')
+
+        # Re-create the image and borders
+        start_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10)
+        start_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10)
+        end_x = start_x + (self.block_size // 10)
+        end_y = start_y + (self.block_size // 10)
+
+        detailed_block_image = self.image.crop((start_x, start_y, end_x, end_y))
+        third_level_image = detailed_block_image.resize((self.block_size * 10, self.block_size * 10), Image.LANCZOS)
+        third_level_photo = ImageTk.PhotoImage(third_level_image)
+
+        canvas.config(width=third_level_photo.width(), height=third_level_photo.height())
+        canvas.create_image(0, 0, image=third_level_photo, anchor=tk.NW)
+
+        # Draw the smaller grid and mark foreground/background pixels
+        pixel_size = third_level_photo.width() // 10
+        for i in range(0, third_level_photo.width(), pixel_size):
+            for j in range(0, third_level_photo.height(), pixel_size):
+                image_x = start_x + (i // pixel_size)
+                image_y = start_y + (j // pixel_size)
+
+                if image_x >= self.labels.shape[1] or image_y >= self.labels.shape[0]:
+                    continue
+
+                label_value = self.labels[image_y, image_x]
+
+                if label_value == 255:  # Foreground
+                    canvas.create_rectangle(
+                        i, j,
+                        i + pixel_size, j + pixel_size,
+                        outline='red', fill='', width=2, tags='border'
+                    )
+                elif label_value == 0:  # Background
+                    canvas.create_rectangle(
+                        i, j,
+                        i + pixel_size, j + pixel_size,
+                        outline='black', fill='', width=2, tags='border'
+                    )
+                else:
+                    # Unidentified pixels; draw grid lines
+                    canvas.create_line([(i, j), (i, j + pixel_size)], fill='white', tags='border')
+                    canvas.create_line([(i, j), (i + pixel_size, j)], fill='white', tags='border')
+                    canvas.create_line([(i + pixel_size, j), (i + pixel_size, j + pixel_size)], fill='white', tags='border')
+                    canvas.create_line([(i, j + pixel_size), (i + pixel_size, j + pixel_size)], fill='white', tags='border')
+
+        # Store the image reference
+        canvas.image = third_level_photo
 
     def undo(self):
         state = self.history.undo()
@@ -227,6 +385,7 @@ class ImageLabeler:
             self.load_state(state)
         else:
             print("No more redo steps available.")
+
 
 
     def enter_modification_mode(self):
@@ -495,7 +654,7 @@ class ImageLabeler:
                     self.canvas.create_rectangle(
                         block_x * self.block_size, block_y * self.block_size,
                         (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                        outline='red', fill='', width=2
+                        outline='red', fill='', width=2, tags='border'
                     )
             elif self.marking_mode.get() == "background":
                 if not self.is_block_background(block_x, block_y):
@@ -503,7 +662,7 @@ class ImageLabeler:
                     self.canvas.create_rectangle(
                         block_x * self.block_size, block_y * self.block_size,
                         (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                        outline='black', fill='', width=2
+                        outline='black', fill='', width=2, tags='border'
                     )
             elif self.marking_mode.get() == "unidentified":
                 # Handle unidentified
@@ -622,7 +781,7 @@ class ImageLabeler:
                 self.canvas.create_rectangle(
                     block_x * self.block_size, block_y * self.block_size,
                     (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                    outline='red', fill='', width=2
+                    outline='red', fill='', width=2, tags='border'
                 )
                 affected_pixels.append((block_x, block_y, "background"))
 
@@ -635,7 +794,7 @@ class ImageLabeler:
                 self.canvas.create_rectangle(
                     block_x * self.block_size, block_y * self.block_size,
                     (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
-                    outline='black', fill='', width=2
+                    outline='black', fill='', width=2, tags='border'
                 )
                 affected_pixels.append((block_x, block_y, "foreground"))
         elif self.marking_mode.get() == "unidentified":
@@ -670,7 +829,7 @@ class ImageLabeler:
                 self.canvas.create_rectangle(
                     block_id[0] * self.block_size, block_id[1] * self.block_size,
                     (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                    outline='red', fill='', width=2
+                    outline='red', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "background":
             for block_id in enclosed_blocks:
@@ -679,7 +838,7 @@ class ImageLabeler:
                 self.canvas.create_rectangle(
                     block_id[0] * self.block_size, block_id[1] * self.block_size,
                     (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                    outline='black', fill='', width=2
+                    outline='black', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "unidentified":
             for block_id in enclosed_blocks:
@@ -723,12 +882,31 @@ class ImageLabeler:
         block_id = (x, y)
         self.open_detailed_window(block_id)
 
+
+    def on_detailed_window_close(self, window):
+        if window in self.open_detailed_windows:
+            idx = self.open_detailed_windows.index(window)
+            self.open_detailed_windows.pop(idx)
+            self.open_detailed_canvases.pop(idx)
+
+    def on_third_level_window_close(self, window):
+        if window in self.open_third_level_windows:
+            idx = self.open_third_level_windows.index(window)
+            self.open_third_level_windows.pop(idx)
+            self.open_third_level_canvases.pop(idx)
+
     def open_detailed_window(self, block_id):
         detailed_window = tk.Toplevel(self.root)
         detailed_window.title(f"Detailed View: Block {block_id}")
         detailed_canvas = tk.Canvas(detailed_window)
         detailed_canvas.pack(fill=tk.BOTH, expand=True)
-        
+        # Store references to the window and canvas
+        self.open_detailed_windows.append(detailed_window)
+        self.open_detailed_canvases.append((detailed_canvas, block_id))
+
+        # Bind window close event
+        detailed_window.bind("<Destroy>", lambda event: self.on_detailed_window_close(detailed_window))
+
         block_image = self.image.crop(
             (block_id[0] * self.block_size, block_id[1] * self.block_size, 
             (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size)
@@ -758,13 +936,13 @@ class ImageLabeler:
                     detailed_canvas.create_rectangle(
                         i, j,
                         i + small_block_size, j + small_block_size,
-                        outline='red', fill='', width=2
+                        outline='red', fill='', width=2, tags='border'
                     )
                 elif label_value == 0:  # Background
                     detailed_canvas.create_rectangle(
                         i, j,
                         i + small_block_size, j + small_block_size,
-                        outline='black', fill='', width=2
+                        outline='black', fill='', width=2, tags='border'
                     )
                 else:
                     # Unidentified pixels; draw grid lines
@@ -845,7 +1023,7 @@ class ImageLabeler:
                         grid_y * small_block_size,
                         (grid_x + 1) * small_block_size,
                         (grid_y + 1) * small_block_size,
-                        outline='red', fill='', width=2
+                        outline='red', fill='', width=2, tags='border'
                     )
             elif self.marking_mode.get() == "background":
                 if not self.is_block_background(block_x, block_y, detailed_block_size):
@@ -855,7 +1033,7 @@ class ImageLabeler:
                         grid_y * small_block_size,
                         (grid_x + 1) * small_block_size,
                         (grid_y + 1) * small_block_size,
-                        outline='black', fill='', width=2
+                        outline='black', fill='', width=2, tags='border'
                     )
 
 
@@ -910,7 +1088,7 @@ class ImageLabeler:
                 canvas.create_rectangle(
                     local_x * small_block_size, local_y * small_block_size,
                     (local_x + 1) * small_block_size, (local_y + 1) * small_block_size,
-                    outline='red', fill='', width=2
+                    outline='red', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "background":
             if np.all(current_label_block == 0):
@@ -923,7 +1101,7 @@ class ImageLabeler:
                 canvas.create_rectangle(
                     local_x * small_block_size, local_y * small_block_size,
                     (local_x + 1) * small_block_size, (local_y + 1) * small_block_size,
-                    outline='black', fill='', width=2
+                    outline='black', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "unidentified":
             if np.all(current_label_block == 128):
@@ -955,7 +1133,7 @@ class ImageLabeler:
                 canvas.create_rectangle(
                     (detailed_x % 10) * small_block_size, (detailed_y % 10) * small_block_size,
                     ((detailed_x % 10) + 1) * small_block_size, ((detailed_y % 10) + 1) * small_block_size,
-                    outline='red', fill='', width=2
+                    outline='red', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "background":
             for pixel_id in enclosed_blocks:
@@ -966,7 +1144,7 @@ class ImageLabeler:
                 canvas.create_rectangle(
                     (detailed_x % 10) * small_block_size, (detailed_y % 10) * small_block_size,
                     ((detailed_x % 10) + 1) * small_block_size, ((detailed_y % 10) + 1) * small_block_size,
-                    outline='black', fill='', width=2
+                    outline='black', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "unidentified":
             for pixel_id in enclosed_blocks:
@@ -996,7 +1174,7 @@ class ImageLabeler:
         canvas.create_rectangle(
             x * small_block_size, y * small_block_size,
             (x + 1) * small_block_size, (y + 1) * small_block_size,
-            outline='white', fill=''
+            outline='white', fill='', tags='border'
         )
     def mark_similar_color_detailed(self, event, canvas, block_id, small_block_size):
         # Calculate local indices within the detailed view
@@ -1070,13 +1248,13 @@ class ImageLabeler:
                         canvas.create_rectangle(
                             i * small_block_size, j * small_block_size,
                             (i + 1) * small_block_size, (j + 1) * small_block_size,
-                            outline='red', fill='', width=2
+                            outline='red', fill='', width=2, tags='border'
                         )
                     elif self.marking_mode.get() == "background":
                         canvas.create_rectangle(
                             i * small_block_size, j * small_block_size,
                             (i + 1) * small_block_size, (j + 1) * small_block_size,
-                            outline='black', fill='', width=2
+                            outline='black', fill='', width=2, tags='border'
                         )
 
         # Update the processed image
@@ -1089,7 +1267,13 @@ class ImageLabeler:
         third_level_window.title(f"Third Level View: Block {block_id}, Detailed Block {detailed_block_id}")
         third_level_canvas = tk.Canvas(third_level_window)
         third_level_canvas.pack(fill=tk.BOTH, expand=True)
-        
+        # Store references to the window and canvas
+        self.open_third_level_windows.append(third_level_window)
+        self.open_third_level_canvases.append((third_level_canvas, block_id, detailed_block_id))
+
+        # Bind window close event
+        third_level_window.bind("<Destroy>", lambda event: self.on_third_level_window_close(third_level_window))
+
         # Calculate the starting coordinates in the image
         start_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10)
         start_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10)
@@ -1126,13 +1310,13 @@ class ImageLabeler:
                     third_level_canvas.create_rectangle(
                         i, j,
                         i + pixel_size, j + pixel_size,
-                        outline='red', fill='', width=2
+                        outline='red', fill='', width=2, tags='border'
                     )
                 elif label_value == 0:  # Background
                     third_level_canvas.create_rectangle(
                         i, j,
                         i + pixel_size, j + pixel_size,
-                        outline='black', fill='', width=2
+                        outline='black', fill='', width=2, tags='border'
                     )
                 else:
                     # Unidentified pixels; draw grid lines
@@ -1213,7 +1397,7 @@ class ImageLabeler:
                         grid_y * pixel_size,
                         (grid_x + 1) * pixel_size,
                         (grid_y + 1) * pixel_size,
-                        outline='red', fill='', width=2
+                        outline='red', fill='', width=2, tags='border'
                     )
             elif self.marking_mode.get() == "background":
                 if not self.is_block_background(block_x, block_y, third_level_block_size):
@@ -1223,7 +1407,7 @@ class ImageLabeler:
                         grid_y * pixel_size,
                         (grid_x + 1) * pixel_size,
                         (grid_y + 1) * pixel_size,
-                        outline='black', fill='', width=2
+                        outline='black', fill='', width=2, tags='border'
                     )
 
     def end_third_level_draw_or_click(self, event, canvas, block_id, detailed_block_id, pixel_size):
@@ -1261,7 +1445,7 @@ class ImageLabeler:
                 canvas.create_rectangle(
                     (x // pixel_size) * pixel_size, (y // pixel_size) * pixel_size,
                     ((x // pixel_size) + 1) * pixel_size, ((y // pixel_size) + 1) * pixel_size,
-                    outline='red', fill='', width=2
+                    outline='red', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "background":
             if self.labels[image_y, image_x] == 0:
@@ -1274,7 +1458,7 @@ class ImageLabeler:
                 canvas.create_rectangle(
                     (x // pixel_size) * pixel_size, (y // pixel_size) * pixel_size,
                     ((x // pixel_size) + 1) * pixel_size, ((y // pixel_size) + 1) * pixel_size,
-                    outline='black', fill='', width=2
+                    outline='black', fill='', width=2, tags='border'
                 )
 
         self.update_processed_image()
@@ -1299,7 +1483,7 @@ class ImageLabeler:
                     (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
                     ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
                     ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                    outline='red', fill='', width=2
+                    outline='red', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "background":
             for pixel_id in enclosed_blocks:
@@ -1312,7 +1496,7 @@ class ImageLabeler:
                     (third_level_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
                     ((third_level_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
                     ((third_level_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                    outline='black', fill='', width=2
+                    outline='black', fill='', width=2, tags='border'
                 )
         elif self.marking_mode.get() == "unidentified":
             for pixel_id in enclosed_blocks:
@@ -1342,7 +1526,7 @@ class ImageLabeler:
         canvas.create_rectangle(
             x * pixel_size, y * pixel_size,
             (x + 1) * pixel_size, (y + 1) * pixel_size,
-            outline='', fill=''
+            outline='', fill='', tags='border'
         )
 
     def mark_similar_color(self, event, canvas, block_id, detailed_block_id, pixel_size):
@@ -1371,7 +1555,7 @@ class ImageLabeler:
                                 (pixel_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
                                 ((pixel_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
                                 ((pixel_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                                outline='red', fill='', width=2
+                                outline='red', fill='', width=2, tags='border'
                             )
                         elif self.marking_mode.get() == "background":
                             self.add_block_pixels_to_background(pixel_x, pixel_y, third_level_block_size)
@@ -1380,7 +1564,7 @@ class ImageLabeler:
                                 (pixel_y % (self.block_size // 10)) // third_level_block_size * pixel_size,
                                 ((pixel_x % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
                                 ((pixel_y % (self.block_size // 10)) // third_level_block_size + 1) * pixel_size,
-                                outline='black', fill='', width=2
+                                outline='black', fill='', width=2, tags='border'
                             )
             self.save_state()
             self.update_processed_image()
@@ -1395,10 +1579,6 @@ class ImageLabeler:
             self.update_display_in_modification_mode(None)
 
 
-    def redraw_all_blocks(self):
-        for x in range(0, self.image.width // self.block_size):
-            for y in range(0, self.image.height // self.block_size):
-                self.redraw_block(x, y)
 
 
     def redraw_block(self, x, y):
