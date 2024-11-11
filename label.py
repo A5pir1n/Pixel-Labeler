@@ -770,39 +770,65 @@ class ImageLabeler:
     def process_single_click(self, x, y):
         block_x = x // self.block_size
         block_y = y // self.block_size
-        affected_pixels = []
+        labels_changed = False  # Flag to check if any labels were changed
 
         if self.marking_mode.get() == "foreground":
-            if self.is_block_foreground(block_x, block_y):
-                self.remove_block_pixels_from_foreground(block_x, block_y)
-                self.redraw_block(block_x, block_y)
-            else:
+            # Check if any pixels in the block are unlocked and not already foreground
+            if self.can_modify_block(block_x, block_y, target_label=255):
                 self.add_block_pixels_to_foreground(block_x, block_y)
                 self.canvas.create_rectangle(
                     block_x * self.block_size, block_y * self.block_size,
                     (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
                     outline='red', fill='', width=2, tags='border'
                 )
-                affected_pixels.append((block_x, block_y, "background"))
-
-        elif self.marking_mode.get() == "background":
-            if self.is_block_background(block_x, block_y):
-                self.remove_block_pixels_from_background(block_x, block_y)
-                self.redraw_block(block_x, block_y)
+                labels_changed = True
             else:
+                print("No pixels were modified; all pixels are locked or already foreground.")
+        elif self.marking_mode.get() == "background":
+            if self.can_modify_block(block_x, block_y, target_label=0):
                 self.add_block_pixels_to_background(block_x, block_y)
                 self.canvas.create_rectangle(
                     block_x * self.block_size, block_y * self.block_size,
                     (block_x + 1) * self.block_size, (block_y + 1) * self.block_size,
                     outline='black', fill='', width=2, tags='border'
                 )
-                affected_pixels.append((block_x, block_y, "foreground"))
+                labels_changed = True
+            else:
+                print("No pixels were modified; all pixels are locked or already background.")
         elif self.marking_mode.get() == "unidentified":
-            # Handle unidentified marking
-            self.set_block_to_unidentified(block_x, block_y)
-            self.redraw_block(block_x, block_y)
+            if self.can_modify_block(block_x, block_y, target_label=128):
+                self.set_block_to_unidentified(block_x, block_y)
+                self.redraw_block(block_x, block_y)
+                labels_changed = True
+            else:
+                print("No pixels were modified; all pixels are locked or already unidentified.")
 
-        self.update_processed_image()
+        if labels_changed:
+            self.update_processed_image()
+
+    def can_modify_block(self, x, y, target_label, block_size=None):
+        if block_size is None:
+            block_size = self.block_size
+        x_start = x * block_size
+        x_end = (x + 1) * block_size
+        y_start = y * block_size
+        y_end = (y + 1) * block_size
+
+        # Ensure coordinates are within bounds
+        x_end = min(x_end, self.labels.shape[1])
+        y_end = min(y_end, self.labels.shape[0])
+
+        # Get labels and locked status for the block
+        block_labels = self.labels[y_start:y_end, x_start:x_end]
+        locked_block = self.locked_labels[y_start:y_end, x_start:x_end]
+
+        # Create a mask of pixels that are unlocked and not already the target label
+        modifiable_mask = (~locked_block) & (block_labels != target_label)
+
+        return np.any(modifiable_mask)
+
+
+
     def set_block_to_unidentified(self, x, y, block_size=None):
         if block_size is None:
             block_size = self.block_size
@@ -821,34 +847,48 @@ class ImageLabeler:
             self.drawn_lines = []
             return
         enclosed_blocks = self.get_enclosed_blocks(self.drawn_lines)
+        labels_changed = False
 
         if self.marking_mode.get() == "foreground":
             for block_id in enclosed_blocks:
-                # Directly set the block to foreground
-                self.add_block_pixels_to_foreground(block_id[0], block_id[1])
-                self.canvas.create_rectangle(
-                    block_id[0] * self.block_size, block_id[1] * self.block_size,
-                    (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                    outline='red', fill='', width=2, tags='border'
-                )
+                if self.can_modify_block(block_id[0], block_id[1], target_label=255):
+                    self.add_block_pixels_to_foreground(block_id[0], block_id[1])
+                    self.canvas.create_rectangle(
+                        block_id[0] * self.block_size, block_id[1] * self.block_size,
+                        (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
+                        outline='red', fill='', width=2, tags='border'
+                    )
+                    labels_changed = True
+                else:
+                    print(f"No pixels modified in block {block_id}; all pixels are locked or already foreground.")
         elif self.marking_mode.get() == "background":
             for block_id in enclosed_blocks:
-                # Directly set the block to background
-                self.add_block_pixels_to_background(block_id[0], block_id[1])
-                self.canvas.create_rectangle(
-                    block_id[0] * self.block_size, block_id[1] * self.block_size,
-                    (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
-                    outline='black', fill='', width=2, tags='border'
-                )
+                if self.can_modify_block(block_id[0], block_id[1], target_label=0):
+                    self.add_block_pixels_to_background(block_id[0], block_id[1])
+                    self.canvas.create_rectangle(
+                        block_id[0] * self.block_size, block_id[1] * self.block_size,
+                        (block_id[0] + 1) * self.block_size, (block_id[1] + 1) * self.block_size,
+                        outline='black', fill='', width=2, tags='border'
+                    )
+                    labels_changed = True
+                else:
+                    print(f"No pixels modified in block {block_id}; all pixels are locked or already background.")
         elif self.marking_mode.get() == "unidentified":
             for block_id in enclosed_blocks:
-                # Directly set the block to unidentified
-                self.set_block_to_unidentified(block_id[0], block_id[1])
-                self.redraw_block(block_id[0], block_id[1])
+                if self.can_modify_block(block_id[0], block_id[1], target_label=128):
+                    self.set_block_to_unidentified(block_id[0], block_id[1])
+                    self.redraw_block(block_id[0], block_id[1])
+                    labels_changed = True
+                else:
+                    print(f"No pixels modified in block {block_id}; all pixels are locked or already unidentified.")
 
         self.drawn_lines = []
         self.canvas.delete('blue_line')
-        self.update_processed_image()
+
+        if labels_changed:
+            self.update_processed_image()
+        else:
+            print("No pixels were modified in the drawn area; all pixels are locked or already set.")
 
 
 
@@ -1057,7 +1097,7 @@ class ImageLabeler:
         local_y = y // small_block_size
 
         # Size of the block in the original image corresponding to one small block in the detailed view
-        block_size = self.block_size // 10  
+        block_size = self.block_size // 10
 
         # Calculate the starting positions in the image
         x_start = block_id[0] * self.block_size + local_x * block_size
@@ -1074,43 +1114,57 @@ class ImageLabeler:
         x_end = min(x_end, self.labels.shape[1])
         y_end = min(y_end, self.labels.shape[0])
 
-        # Get the current labels in the block
+        # Get the current labels and locked status in the block
         current_label_block = self.labels[y_start:y_end, x_start:x_end]
+        locked_block = self.locked_labels[y_start:y_end, x_start:x_end]
+        modifiable_mask = ~locked_block
+
+        labels_changed = False
 
         if self.marking_mode.get() == "foreground":
-            if np.all(current_label_block == 255):
-                # Block is already foreground; remove (set to unidentified)
-                self.labels[y_start:y_end, x_start:x_end] = 128  # Unidentified
-                self.redraw_detailed_block(local_x, local_y, canvas, small_block_size)
-            else:
-                # Set block to foreground
-                self.labels[y_start:y_end, x_start:x_end] = 255
+            # Create a mask for pixels that are unlocked and not already foreground
+            modifiable_mask &= (current_label_block != 255)
+            if np.any(modifiable_mask):
+                # Set modifiable pixels to foreground
+                self.labels[y_start:y_end, x_start:x_end][modifiable_mask] = 255
                 canvas.create_rectangle(
                     local_x * small_block_size, local_y * small_block_size,
                     (local_x + 1) * small_block_size, (local_y + 1) * small_block_size,
                     outline='red', fill='', width=2, tags='border'
                 )
-        elif self.marking_mode.get() == "background":
-            if np.all(current_label_block == 0):
-                # Block is already background; remove (set to unidentified)
-                self.labels[y_start:y_end, x_start:x_end] = 128  # Unidentified
-                self.redraw_detailed_block(local_x, local_y, canvas, small_block_size)
+                labels_changed = True
             else:
-                # Set block to background
-                self.labels[y_start:y_end, x_start:x_end] = 0
+                print("No pixels were modified; all pixels are locked or already foreground.")
+        elif self.marking_mode.get() == "background":
+            # Create a mask for pixels that are unlocked and not already background
+            modifiable_mask &= (current_label_block != 0)
+            if np.any(modifiable_mask):
+                # Set modifiable pixels to background
+                self.labels[y_start:y_end, x_start:x_end][modifiable_mask] = 0
                 canvas.create_rectangle(
                     local_x * small_block_size, local_y * small_block_size,
                     (local_x + 1) * small_block_size, (local_y + 1) * small_block_size,
                     outline='black', fill='', width=2, tags='border'
                 )
-        elif self.marking_mode.get() == "unidentified":
-            if np.all(current_label_block == 128):
-                pass
+                labels_changed = True
             else:
-                # Set block to unidentified
-                self.labels[y_start:y_end, x_start:x_end] = 128
+                print("No pixels were modified; all pixels are locked or already background.")
+        elif self.marking_mode.get() == "unidentified":
+            # Create a mask for pixels that are unlocked and not already unidentified
+            modifiable_mask &= (current_label_block != 128)
+            if np.any(modifiable_mask):
+                # Set modifiable pixels to unidentified
+                self.labels[y_start:y_end, x_start:x_end][modifiable_mask] = 128
                 self.redraw_detailed_block(local_x, local_y, canvas, small_block_size)
-        self.update_processed_image()
+                labels_changed = True
+            else:
+                print("No pixels were modified; all pixels are locked or already unidentified.")
+
+        if labels_changed:
+            self.update_processed_image()
+        else:
+            print("No pixels were modified in the detailed view; all pixels are locked or already set.")
+
 
         
     def process_detailed_drawn_area(self, canvas, block_id, small_block_size):
