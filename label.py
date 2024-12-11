@@ -75,6 +75,9 @@ class ImageLabeler:
 
         self.modification_mode = False
 
+        # Track currently highlighted rectangles
+        self.main_highlight_rect = None      # Highlight on the main canvas
+        self.detailed_highlight_rect = None  # Highlight on the detailed canvas
 
         self.canvas = tk.Canvas(root)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -990,6 +993,22 @@ class ImageLabeler:
                     detailed_canvas.create_line([(i, j), (i + small_block_size, j)], fill='white')
                     detailed_canvas.create_line([(i + small_block_size, j), (i + small_block_size, j + small_block_size)], fill='white')
                     detailed_canvas.create_line([(i, j + small_block_size), (i + small_block_size, j + small_block_size)], fill='white')
+        
+        # Highlight the corresponding block in the main canvas
+        # Remove old highlight if it exists
+        if self.main_highlight_rect is not None:
+            self.canvas.delete(self.main_highlight_rect)
+
+        x1 = block_id[0] * self.block_size
+        y1 = block_id[1] * self.block_size
+        x2 = x1 + self.block_size
+        y2 = y1 + self.block_size
+
+        # Draw a blue rectangle to highlight the block on the main canvas
+        self.main_highlight_rect = self.canvas.create_rectangle(
+            x1, y1, x2, y2,
+            outline='blue', width=3, tags='highlight'
+        )
 
         detailed_canvas.bind("<Button-1>", lambda event: self.start_detailed_draw_or_click(event, detailed_canvas, block_id, small_block_size))
         if sys.platform == 'darwin':
@@ -1009,7 +1028,8 @@ class ImageLabeler:
         x = event.x // small_block_size
         y = event.y // small_block_size
         detailed_block_id = (x, y)
-        self.open_third_level_window(block_id, detailed_block_id)
+        self.open_third_level_window(block_id, detailed_block_id, canvas, small_block_size)
+
 
     def start_detailed_draw_or_click(self, event, canvas, block_id, small_block_size):
         self.drawing = False
@@ -1316,36 +1336,29 @@ class ImageLabeler:
         # Save the state
         self.save_state()
 
-    def open_third_level_window(self, block_id, detailed_block_id):
+    def open_third_level_window(self, block_id, detailed_block_id, detailed_canvas, small_block_size):
         third_level_window = tk.Toplevel(self.root)
         third_level_window.title(f"Third Level View: Block {block_id}, Detailed Block {detailed_block_id}")
         third_level_canvas = tk.Canvas(third_level_window)
         third_level_canvas.pack(fill=tk.BOTH, expand=True)
-        # Store references to the window and canvas
         self.open_third_level_windows.append(third_level_window)
         self.open_third_level_canvases.append((third_level_canvas, block_id, detailed_block_id))
 
-        # Bind window close event
         third_level_window.bind("<Destroy>", lambda event: self.on_third_level_window_close(third_level_window))
 
-        # Calculate the starting coordinates in the image
         start_x = block_id[0] * self.block_size + detailed_block_id[0] * (self.block_size // 10)
         start_y = block_id[1] * self.block_size + detailed_block_id[1] * (self.block_size // 10)
         end_x = start_x + (self.block_size // 10)
         end_y = start_y + (self.block_size // 10)
-        
-        # Crop the image to the desired block
+
         detailed_block_image = self.image.crop((start_x, start_y, end_x, end_y))
-        
-        # Resize the cropped image to display it in the third-level window
         third_level_image = detailed_block_image.resize((self.block_size * 10, self.block_size * 10), Image.LANCZOS)
         third_level_photo = ImageTk.PhotoImage(third_level_image)
-        
+
         third_level_canvas.config(width=third_level_photo.width(), height=third_level_photo.height())
         third_level_canvas.create_image(0, 0, image=third_level_photo, anchor=tk.NW)
-        
-        # Draw the smaller grid and mark foreground/background pixels
-        pixel_size = third_level_photo.width() // 10  # Size of each displayed pixel block
+
+        pixel_size = third_level_photo.width() // 10
         
         for i in range(0, third_level_photo.width(), pixel_size):
             for j in range(0, third_level_photo.height(), pixel_size):
@@ -1379,6 +1392,21 @@ class ImageLabeler:
                     third_level_canvas.create_line([(i + pixel_size, j), (i + pixel_size, j + pixel_size)], fill='white')
                     third_level_canvas.create_line([(i, j + pixel_size), (i + pixel_size, j + pixel_size)], fill='white')
         
+        # Highlight the corresponding sub-block in the detailed canvas
+        # Remove old highlight if it exists
+        if self.detailed_highlight_rect is not None:
+            detailed_canvas.delete(self.detailed_highlight_rect)
+
+        # Coordinates of the highlighted sub-block in the detailed view
+        x1 = detailed_block_id[0] * small_block_size
+        y1 = detailed_block_id[1] * small_block_size
+        x2 = x1 + small_block_size
+        y2 = y1 + small_block_size
+
+        self.detailed_highlight_rect = detailed_canvas.create_rectangle(
+            x1, y1, x2, y2,
+            outline='blue', width=3, tags='highlight'
+        )
         # Bind mouse events to the third-level canvas
         third_level_canvas.bind("<Button-1>", lambda event: self.start_third_level_draw_or_click(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
         third_level_canvas.bind("<B1-Motion>", lambda event: self.draw_third_level(event, third_level_canvas, block_id, detailed_block_id, pixel_size))
