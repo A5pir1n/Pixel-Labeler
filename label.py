@@ -939,6 +939,11 @@ class ImageLabeler:
             self.open_third_level_canvases.pop(idx)
 
     def open_detailed_window(self, block_id):
+        for window in self.open_third_level_windows.copy():
+            window.destroy()  
+        for window in self.open_detailed_windows.copy():
+            window.destroy() 
+
         detailed_window = tk.Toplevel(self.root)
         detailed_window.title(f"Detailed View: Block {block_id}")
         detailed_canvas = tk.Canvas(detailed_window)
@@ -1337,6 +1342,8 @@ class ImageLabeler:
         self.save_state()
 
     def open_third_level_window(self, block_id, detailed_block_id, detailed_canvas, small_block_size):
+        for window in self.open_third_level_windows.copy():
+                window.destroy()
         third_level_window = tk.Toplevel(self.root)
         third_level_window.title(f"Third Level View: Block {block_id}, Detailed Block {detailed_block_id}")
         third_level_canvas = tk.Canvas(third_level_window)
